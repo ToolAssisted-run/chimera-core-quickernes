@@ -60,6 +60,16 @@ class NESInstance final : public NESInstanceBase
   void setNTABBlockSize(const size_t size) override { _nes.setNTABBlockSize(size); }
   void setSRAMBlockSize(const size_t size) override { _nes.setSRAMBlockSize(size); }
 
+  void useFlatCodeMap() override
+  {
+    _nes.useFlatCodeMap();
+  }
+
+  void usePagedCodeMap() override
+  {
+    _nes.usePagedCodeMap();
+  }
+
   void advanceState(const jaffar::input_t &input) override
   {
     if (_doRendering == true) _nes.emulate_frame(input.port1, input.port2, input.arkanoidLatch, input.arkanoidFire);

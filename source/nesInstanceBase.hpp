@@ -73,6 +73,8 @@ class NESInstanceBase
   virtual void *getInternalEmulatorPointer() = 0;
   virtual void setNTABBlockSize(const size_t size) {};
   virtual void setSRAMBlockSize(const size_t size) {};
+  virtual void useFlatCodeMap() {};
+  virtual void usePagedCodeMap() {};
 
   protected:
   virtual void enableStateBlockImpl(const std::string &block) = 0;

@@ -25,10 +25,13 @@ quickerNESPPUSrc = [
 quickerNESSrc = quickerNESAPUSrc + quickerNESPPUSrc + [
  'core/mappers/mapper.cpp', 
  'core/emu.cpp', 
- 'core/cpu.cpp'
+ 'core/cpuPaged.cpp',
+ 'core/cpuFlat.cpp'
 ]
 
-quickerNESCompileArgs = [ ]
+quickerNESCompileArgs = [
+    '-fno-strict-aliasing'
+ ]
 
 # Checking for arkanoid input support
 if get_option('enableArkanoidInputs') == true

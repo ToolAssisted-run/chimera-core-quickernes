@@ -64,6 +64,14 @@ class NESInstance final : public NESInstanceBase
   void doSoftReset() override { _nes.reset(false); }
   void doHardReset() override { _nes.reset(true); }
 
+  void useFlatCodeMap() override
+  {
+  }
+
+  void usePagedCodeMap() override
+  {
+  }
+
   void *getInternalEmulatorPointer() override { return &_nes; }
 
   void advanceState(const jaffar::input_t &input) override

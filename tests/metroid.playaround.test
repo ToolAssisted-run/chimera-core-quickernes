@@ -4,8 +4,9 @@
   "Initial State File": "",
   "Sequence File": "metroid.playaround.sol",
   "Disable State Blocks": [ "CHRR", "NTAB", "SPRT", "CTRL" ],
+  "Use Flat Code Map": true,
   "Controller 1 Type": "Joypad",
-  "Controller 2 Type": "None",
+  "Controller 2 Type": "Joypad",
   "Differential Compression":
   {
     "Enabled": false,

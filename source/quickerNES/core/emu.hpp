@@ -54,8 +54,18 @@ class Emu
   void setSRAMBlockSize(const size_t size) { emu.setSRAMBlockSize(size); }
   void enableStateBlock(const std::string &block) { emu.enableStateBlock(block); };
   void disableStateBlock(const std::string &block) { emu.disableStateBlock(block); };
-
   void setControllerType(Core::controllerType_t type) { emu.setControllerType(type); }
+
+  void useFlatCodeMap()
+  {
+    emu.flattenCodePages();
+    emu.useFlatCodeMap();
+  }
+
+  void usePagedCodeMap()
+  {
+    emu.usePagedCodeMap();
+  }
 
   // Basic emulation
 

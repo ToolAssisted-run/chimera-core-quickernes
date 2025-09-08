@@ -36,8 +36,8 @@ namespace quickerNES
 
 // Macros
 
-#define GET_OPERAND(addr) page[addr]
-#define GET_OPERAND16(addr) *(uint16_t *)(&page[addr])
+#define GET_OPERAND(addr) flat_code_map[addr]
+#define GET_OPERAND16(addr) *(uint16_t *)(&flat_code_map[addr])
 
 #define ADD_PAGE (pc++, data += 0x100 * GET_OPERAND(pc));
 #define GET_ADDR() GET_OPERAND16(pc)
@@ -125,44 +125,17 @@ namespace quickerNES
 // Adding likely to fail because typically for loops exit conditions fail until the last one
 #define BRANCH(cond)                        \
   {                                         \
-    pc++;                                   \
-    int offset = (int8_t)data;              \
-    int extra_clock = (pc & 0xFF) + offset; \
+    int extra_clock = (++pc & 0xFF) + instruction.data; \
     if (!(cond))                            \
     {                                       \
       clock_count--;                        \
       goto loop;                            \
     }                                       \
-    pc += offset;                           \
+    pc += instruction.data;                           \
     pc = uint16_t(pc);                      \
     clock_count += (extra_clock >> 8) & 1;  \
     goto loop;                              \
   }
-
-void Cpu::reset(void const *unmapped_page)
-{
-  r.status = 0;
-  r.sp = 0;
-  r.pc = 0;
-  r.a = 0;
-  r.x = 0;
-  r.y = 0;
-
-  error_count_ = 0;
-  clock_count = 0;
-  clock_limit = 0;
-  irq_time_ = LONG_MAX / 2 + 1;
-  end_time_ = LONG_MAX / 2 + 1;
-
-  set_code_page(0, low_mem);
-  set_code_page(1, low_mem);
-  set_code_page(2, low_mem);
-  set_code_page(3, low_mem);
-  for (int32_t i = 4; i < page_count + 1; i++)
-    set_code_page(i, (uint8_t *)unmapped_page);
-
-  isCorrectExecution = true;
-}
 
 // Note: 'addr' is evaulated more than once in the following macros, so it
 // must not contain side-effects.
@@ -204,284 +177,13 @@ void Cpu::reset(void const *unmapped_page)
     nz |= ~in & st_z;                   \
   } while (0)
 
-inline int32_t Cpu::read(nes_addr_t addr)
-{
-  return READ(addr);
-}
-
-inline void Cpu::write(nes_addr_t addr, int value)
-{
-  WRITE(addr, value);
-}
-
-// status flags
-uint8_t clock_table[256] = {
-  //  0 1 2 3 4 5 6 7 8 9 A B C D E F
-  7,
-  6,
-  2,
-  8,
-  3,
-  3,
-  5,
-  5,
-  3,
-  2,
-  2,
-  2,
-  4,
-  4,
-  6,
-  6, // 0
-  3,
-  5,
-  2,
-  8,
-  4,
-  4,
-  6,
-  6,
-  2,
-  4,
-  2,
-  7,
-  4,
-  4,
-  7,
-  7, // 1
-  6,
-  6,
-  2,
-  8,
-  3,
-  3,
-  5,
-  5,
-  4,
-  2,
-  2,
-  2,
-  4,
-  4,
-  6,
-  6, // 2
-  3,
-  5,
-  2,
-  8,
-  4,
-  4,
-  6,
-  6,
-  2,
-  4,
-  2,
-  7,
-  4,
-  4,
-  7,
-  7, // 3
-  6,
-  6,
-  2,
-  8,
-  3,
-  3,
-  5,
-  5,
-  3,
-  2,
-  2,
-  2,
-  3,
-  4,
-  6,
-  6, // 4
-  3,
-  5,
-  2,
-  8,
-  4,
-  4,
-  6,
-  6,
-  2,
-  4,
-  2,
-  7,
-  4,
-  4,
-  7,
-  7, // 5
-  6,
-  6,
-  2,
-  8,
-  3,
-  3,
-  5,
-  5,
-  4,
-  2,
-  2,
-  2,
-  5,
-  4,
-  6,
-  6, // 6
-  3,
-  5,
-  2,
-  8,
-  4,
-  4,
-  6,
-  6,
-  2,
-  4,
-  2,
-  7,
-  4,
-  4,
-  7,
-  7, // 7
-  2,
-  6,
-  2,
-  6,
-  3,
-  3,
-  3,
-  3,
-  2,
-  2,
-  2,
-  2,
-  4,
-  4,
-  4,
-  4, // 8
-  3,
-  6,
-  2,
-  6,
-  4,
-  4,
-  4,
-  4,
-  2,
-  5,
-  2,
-  5,
-  5,
-  5,
-  5,
-  5, // 9
-  2,
-  6,
-  2,
-  6,
-  3,
-  3,
-  3,
-  3,
-  2,
-  2,
-  2,
-  2,
-  4,
-  4,
-  4,
-  4, // A
-  3,
-  5,
-  2,
-  5,
-  4,
-  4,
-  4,
-  4,
-  2,
-  4,
-  2,
-  4,
-  4,
-  4,
-  4,
-  4, // B
-  2,
-  6,
-  2,
-  8,
-  3,
-  3,
-  5,
-  5,
-  2,
-  2,
-  2,
-  2,
-  4,
-  4,
-  6,
-  6, // C
-  3,
-  5,
-  2,
-  8,
-  4,
-  4,
-  6,
-  6,
-  2,
-  4,
-  2,
-  7,
-  4,
-  4,
-  7,
-  7, // D
-  2,
-  6,
-  2,
-  8,
-  3,
-  3,
-  5,
-  5,
-  2,
-  2,
-  2,
-  2,
-  4,
-  4,
-  6,
-  6, // E
-  3,
-  5,
-  2,
-  8,
-  4,
-  4,
-  6,
-  6,
-  2,
-  4,
-  2,
-  7,
-  4,
-  4,
-  7,
-  7 // F
-};
-
 
 // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
 #if defined(__GNUC__) && !defined(__clang__)
 __attribute__((optimize("align-functions=1024")))
 #endif
 Cpu::result_t
-Cpu::run(nes_time_t end)
+Cpu::runFlat(nes_time_t end)
 {
   set_end_time_(end);
   clock_count = 0;
@@ -505,15 +207,16 @@ Cpu::run(nes_time_t end)
     SET_STATUS(temp);
   }
 
-  uint32_t data;
-  uint8_t const *page;
+  struct [[gnu::packed]] instruction_t {
   uint8_t opcode;
+  int8_t data = 0;
+  } instruction;
+  uint32_t data ;
 
 loop:
 
-  page = code_map[pc >> page_bits];
-  opcode = page[pc++];
-  data = page[pc];
+  *((uint16_t*)&instruction) = *((uint16_t*)(&flat_code_map[pc++]));
+  data = *(uint8_t*)&instruction.data;
 
   if (clock_count >= clock_limit) [[unlikely]]
     goto stop;
@@ -529,14 +232,14 @@ loop:
     scratch[3] = sp;
     scratch[4] = pc - 1;
     scratch[5] = status;
-    scratch[6] = opcode;
+    scratch[6] = instruction.opcode;
     tracecb(scratch);
   }
 #endif
 
-  clock_count += clock_table[opcode];
+  clock_count += clock_table[instruction.opcode];
 
-  switch (opcode)
+  switch (instruction.opcode)
   {
     // Often-Used
 
@@ -921,7 +624,7 @@ loop:
   {
     int32_t temp = data;
     ADD_PAGE
-    if (opcode == 0x1E || opcode == 0x3E) READ(data - (temp & 0x100));
+    if (instruction.opcode == 0x1E || instruction.opcode == 0x3E) READ(data - (temp & 0x100));
     WRITE(data, temp = READ(data));
     nz = (c >> 8) & 1;
     nz |= (c = temp << 1);
@@ -944,7 +647,7 @@ loop:
   {
     int32_t temp = data;
     ADD_PAGE
-    if (opcode == 0x5E || opcode == 0x7E) READ(data - (temp & 0x100));
+    if (instruction.opcode == 0x5E || instruction.opcode == 0x7E) READ(data - (temp & 0x100));
     WRITE(data, temp = READ(data));
     nz = ((c >> 1) & 0x80) | (temp >> 1);
     c = temp << 8;
@@ -1127,7 +830,7 @@ loop:
     CALC_STATUS(temp);
     sp = (sp - 3) | 0x100;
     WRITE_LOW(sp, temp | st_b | st_r);
-    pc = *(uint16_t *)(&code_map[0xFFFE >> page_bits][0xFFFE]);
+    pc = *(uint16_t *)(&flat_code_map[0xFFFE]);
     status |= st_i;
     goto i_flag_changed;
   }
@@ -1460,8 +1163,8 @@ loop:
     // default:
     //  // skip over proper number of bytes
     //  static uint32_t char const row [8] = { 0x95, 0x95, 0x95, 0xd5, 0x95, 0x95, 0xd5, 0xf5 };
-    //  int len = row [opcode >> 2 & 7] >> (opcode << 1 & 6) & 3;
-    //  if ( opcode == 0x9C )
+    //  int len = row [instruction.opcode >> 2 & 7] >> (instruction.opcode << 1 & 6) & 3;
+    //  if ( instruction.opcode == 0x9C )
     //   len = 3;
     //  pc += len - 1;
     //  error_count_++;

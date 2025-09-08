@@ -103,6 +103,10 @@ int main(int argc, char *argv[])
   if (scriptJson["Differential Compression"].is_object() == false) JAFFAR_THROW_LOGIC("Script file 'Differential Compression' entry is not a key/value object\n");
   const auto &differentialCompressionJs = scriptJson["Differential Compression"];
 
+  if (scriptJson.contains("Use Flat Code Map") == false) JAFFAR_THROW_LOGIC("Script file missing 'Use Flat Code Map' entry\n");
+  if (scriptJson["Use Flat Code Map"].is_boolean() == false) JAFFAR_THROW_LOGIC("Script file 'Use Flat Code Map' entry is not a boolean\n");
+  const auto useFlatCodeMap = scriptJson["Use Flat Code Map"].get<bool>();
+
   if (differentialCompressionJs.contains("Enabled") == false) JAFFAR_THROW_LOGIC("Script file missing 'Differential Compression / Enabled' entry\n");
   if (differentialCompressionJs["Enabled"].is_boolean() == false) JAFFAR_THROW_LOGIC("Script file 'Differential Compression / Enabled' entry is not a boolean\n");
   const auto differentialCompressionEnabled = differentialCompressionJs["Enabled"].get<bool>();
@@ -147,6 +151,9 @@ int main(int argc, char *argv[])
   // Getting differential state size
   const auto fixedDiferentialStateSize = e.getDifferentialStateSize();
   const auto fullDifferentialStateSize = fixedDiferentialStateSize + differentialCompressionMaxDifferences;
+
+  // Enabling flat code map, if required
+  if (useFlatCodeMap == true) e.useFlatCodeMap();
 
   // Checking with the expected SHA1 hash
   if (romSHA1 != expectedROMSHA1) JAFFAR_THROW_LOGIC("Wrong ROM SHA1. Found: '%s', Expected: '%s'\n", romSHA1.c_str(), expectedROMSHA1.c_str());

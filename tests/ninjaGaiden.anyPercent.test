@@ -3,6 +3,7 @@
   "Expected ROM SHA1": "CA513F841D75EFEB33BB8099FB02BEEB39F6BB9C",
   "Initial State File": "",
   "Sequence File": "ninjaGaiden.anyPercent.sol",
+  "Use Flat Code Map": true,
   "Disable State Blocks": [ "SRAM", "CHRR", "NTAB", "SPRT", "CTRL" ],
   "Controller 1 Type": "Joypad",
   "Controller 2 Type": "None",
