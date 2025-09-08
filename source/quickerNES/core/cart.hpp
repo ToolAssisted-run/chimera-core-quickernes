@@ -73,25 +73,40 @@ class Cart
     if (h.flags2 & 0x03)
       return "Unsupported console type";
 
-    //printf("[QuickerNES] Cart Mapper Info: Mapper: (%d / %d) - Submapper: %d\n", h.flags, h.flags2, h.ex_mapper);
+    int mapper_code = (h.flags2 & 0xF0) | ((h.flags >> 4) & 0x0F);
+    int submapper_code = 0;
+    if ((h.flags2 & 0x0C) == 0x08)
+    {
+      mapper_code |= (h.ex_mapper << 8) & 0xF00;
+      submapper_code = (h.ex_mapper >> 4) & 0xF;
+    }
+
+    #ifdef _QUICKERNES_PRINT_CART_INFO
+    printf("[QuickerNES] Cart Mapper Info: Mapper: %d - Submapper: %d\n", mapper_code, submapper_code);
+    #endif
 
     // check if NES 2.0 is present
     if ((h.flags2 & 0x0C) == 0x08)
     {
-      // If there's a non-zero submapper present, we can't rely on default iNES behavior
-      // If extended high mapper bits are set, then it won't be supported mapper anyways
       if (h.ex_mapper != 0)
       {
-        bool isSubMapperSupported = false;
+        if ((h.ex_mapper & 0x0F) != 0)
+          return "Unsupported mapper";
 
-        // These particular cases are known to be supported even though non-zero submapper is present
+        bool has_compatible_submapper = false;
 
-        // Pac-Man - Championship Edition (USA, Europe) (Namco Museum Archives Vol 1).nes
-        // SHA1: 4CBAD49930253086FBAF4D082288DF74C76D1ABC
-        // MD5 : EE8BC8BAED5B9C5299E84E80E6490DE6
-        if (h.flags == 50 && h.flags2 == 24 && h.ex_mapper == 48) isSubMapperSupported = true;
+        // For some submappers, functionality doesn't actually change in an incompatible way
+        // For these submappers, we can allow them through
 
-        if (isSubMapperSupported == false) return "Unsupported mapper";
+        // https://www.nesdev.org/wiki/INES_Mapper_019
+        // Mapper 19 submappers mostly just specify expansion sound volume
+        // Submapper 1 and 2 indicate no expansion sound
+        // However, having such doesn't add compatibility issues
+        if (mapper_code == 19)
+          has_compatible_submapper = true;
+
+        if (!has_compatible_submapper)
+          return "Unsupported mapper";
       }
 
        // iNES normally dictates PRG RAM is hardcoded to be 8K
