@@ -74,11 +74,18 @@ class Cart
       return "Unsupported console type";
 
     int mapper_code = (h.flags2 & 0xF0) | ((h.flags >> 4) & 0x0F);
+    
+    #ifdef _QUICKERNES_PRINT_CART_INFO
     int submapper_code = 0;
+    #endif
+    
     if ((h.flags2 & 0x0C) == 0x08)
     {
       mapper_code |= (h.ex_mapper << 8) & 0xF00;
+
+      #ifdef _QUICKERNES_PRINT_CART_INFO
       submapper_code = (h.ex_mapper >> 4) & 0xF;
+      #endif
     }
 
     #ifdef _QUICKERNES_PRINT_CART_INFO
