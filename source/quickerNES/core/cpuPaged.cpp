@@ -149,13 +149,16 @@ namespace quickerNES
 #define READ(addr) (NES_CPU_READ(this, (addr), (clock_count)))
 // A CPU write can hit a mapper register and remap PRG code pages. The main loop
 // caches the current code page pointer across instructions, so it must drop that
-// cache after any write. CPU_PAGE_CACHE_INVALIDATE is empty by default (e.g. for
-// the standalone Cpu::write below) and is redefined to invalidate inside runPaged.
-#define CPU_PAGE_CACHE_INVALIDATE
+// cache after writes that can reach the cartridge. Only cartridge space
+// (>= 0x4020) is routed to mappers; writes to RAM/PPU/APU registers below that
+// never remap PRG, so they leave the cache intact. CPU_PAGE_CACHE_INVALIDATE is
+// empty by default (e.g. for the standalone Cpu::write below) and is redefined to
+// invalidate inside runPaged.
+#define CPU_PAGE_CACHE_INVALIDATE(addr)
 #define WRITE(addr, data)                               \
   {                                                     \
     NES_CPU_WRITE(this, (addr), (data), (clock_count)); \
-    CPU_PAGE_CACHE_INVALIDATE                           \
+    CPU_PAGE_CACHE_INVALIDATE(addr)                     \
   }
 
 #define READ_LOW(addr) (low_mem[int32_t(addr)])
@@ -197,9 +200,10 @@ inline void Cpu::write(nes_addr_t addr, int value)
 }
 
 // Inside runPaged the code page pointer is cached across instructions; invalidate
-// it after every write (see WRITE / CPU_PAGE_CACHE_INVALIDATE above).
+// it after writes that reach cartridge space (see WRITE / CPU_PAGE_CACHE_INVALIDATE
+// above). addr is required to be side-effect free (see note above).
 #undef CPU_PAGE_CACHE_INVALIDATE
-#define CPU_PAGE_CACHE_INVALIDATE cachedPageIdx = ~0u;
+#define CPU_PAGE_CACHE_INVALIDATE(addr) if ((addr) >= 0x4020) cachedPageIdx = ~0u;
 
 // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
 #if defined(__GNUC__) && !defined(__clang__)
