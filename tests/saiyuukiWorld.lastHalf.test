@@ -4,7 +4,7 @@
   "Initial State File": "saiyuukiWorld.lastHalf.state",
   "Sequence File": "saiyuukiWorld.lastHalf.sol",
   "Disable State Blocks": [ ],
-  "Use Flat Code Map": true,
+  "Use Flat Code Map": false,
   "Controller 1 Type": "Joypad",
   "Controller 2 Type": "None",
   "Differential Compression":

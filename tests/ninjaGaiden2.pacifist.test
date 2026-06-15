@@ -4,7 +4,7 @@
   "Initial State File": "",
   "Sequence File": "ninjaGaiden2.pacifist.sol",
   "Disable State Blocks": [ "SRAM", "CHRR", "NTAB", "SPRT", "CTRL" ],
-  "Use Flat Code Map": true,
+  "Use Flat Code Map": false,
   "Controller 1 Type": "Joypad",
   "Controller 2 Type": "None",
   "Differential Compression":

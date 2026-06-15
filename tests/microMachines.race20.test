@@ -4,7 +4,7 @@
   "Initial State File": "microMachines.race20.state",
   "Sequence File": "microMachines.race20.sol",
   "Disable State Blocks": [ "SRAM", "CHRR", "SPRT", "CTRL" ],
-  "Use Flat Code Map": true,
+  "Use Flat Code Map": false,
   "Controller 1 Type": "Joypad",
   "Controller 2 Type": "None",
   "Differential Compression":
