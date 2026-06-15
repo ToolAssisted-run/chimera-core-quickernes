@@ -52,8 +52,14 @@ class Cpu
 
   inline void set_code_page(int i, uint8_t const *p)
   {
-    code_map[i] = p - (unsigned)i * page_size;
-    if (_useFlatCodeMap == true) memcpy(&flat_code_map[i*page_size], p, page_size);
+    uint8_t const *newBase = p - (unsigned)i * page_size;
+    // In flat mode the page contents are mirrored into flat_code_map. PRG ROM is
+    // read-only, so re-mapping a page to the pointer it already holds would copy
+    // identical bytes. Skip that redundant memcpy (the common case for games that
+    // rewrite the same bank register, and for apply_mapping on every state load).
+    if (_useFlatCodeMap == true && code_map[i] != newBase)
+      memcpy(&flat_code_map[i*page_size], p, page_size);
+    code_map[i] = newBase;
   }
 
   inline void map_code(nes_addr_t start, unsigned size, const void *data)

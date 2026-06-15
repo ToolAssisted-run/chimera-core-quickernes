@@ -147,9 +147,15 @@ namespace quickerNES
 
 #define READ_LIKELY_PPU(addr) (NES_CPU_READ_PPU(this, (addr), (clock_count)))
 #define READ(addr) (NES_CPU_READ(this, (addr), (clock_count)))
+// A CPU write can hit a mapper register and remap PRG code pages. The main loop
+// caches the current code page pointer across instructions, so it must drop that
+// cache after any write. CPU_PAGE_CACHE_INVALIDATE is empty by default (e.g. for
+// the standalone Cpu::write below) and is redefined to invalidate inside runPaged.
+#define CPU_PAGE_CACHE_INVALIDATE
 #define WRITE(addr, data)                               \
   {                                                     \
     NES_CPU_WRITE(this, (addr), (data), (clock_count)); \
+    CPU_PAGE_CACHE_INVALIDATE                           \
   }
 
 #define READ_LOW(addr) (low_mem[int32_t(addr)])
@@ -190,6 +196,11 @@ inline void Cpu::write(nes_addr_t addr, int value)
   WRITE(addr, value);
 }
 
+// Inside runPaged the code page pointer is cached across instructions; invalidate
+// it after every write (see WRITE / CPU_PAGE_CACHE_INVALIDATE above).
+#undef CPU_PAGE_CACHE_INVALIDATE
+#define CPU_PAGE_CACHE_INVALIDATE cachedPageIdx = ~0u;
+
 // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
 #if defined(__GNUC__) && !defined(__clang__)
 __attribute__((optimize("align-functions=1024")))
@@ -220,12 +231,23 @@ Cpu::runPaged(nes_time_t end)
   }
 
   uint32_t data;
-  uint8_t const *page;
+  uint8_t const *page = nullptr;
   uint8_t opcode;
+
+  // Cache of the page index currently held in `page`. ~0u forces a (re)load on the
+  // first iteration, on page crossings, and after writes (which may remap PRG).
+  uint32_t cachedPageIdx = ~0u;
 
 loop:
 
-  page = code_map[pc >> page_bits];
+  {
+    uint32_t pageIdx = pc >> page_bits;
+    if (pageIdx != cachedPageIdx) [[unlikely]]
+    {
+      cachedPageIdx = pageIdx;
+      page = code_map[pageIdx];
+    }
+  }
   opcode = page[pc++];
   data = page[pc];
 
