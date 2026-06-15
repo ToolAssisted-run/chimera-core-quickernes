@@ -4,6 +4,7 @@
   "Initial State File": "",
   "Sequence File": "rcProAmII.race1.sol",
   "Disable State Blocks": [ "SRAM", "NTAB", "SPRT", "CTRL", "APUR" ],
+  "Use Flat Code Map": true,
   "Controller 1 Type": "FourScore1",
   "Controller 2 Type": "FourScore2",
   "Differential Compression":
