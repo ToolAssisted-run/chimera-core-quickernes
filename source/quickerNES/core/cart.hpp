@@ -234,10 +234,12 @@ class Cart
 
   // End of public interface
   private:
-  uint8_t *prg_;
-  uint8_t *chr_;
-  long prg_size_;
-  long chr_size_;
+  // Null-initialized so ~Cart()'s free(prg_) is safe when no ROM was loaded (e.g. config-only
+  // construction such as --dryRun); otherwise free() would be called on an uninitialized pointer.
+  uint8_t *prg_ = nullptr;
+  uint8_t *chr_ = nullptr;
+  long prg_size_ = 0;
+  long chr_size_ = 0;
   unsigned mapper;
 };
 
