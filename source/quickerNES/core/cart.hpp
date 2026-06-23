@@ -234,11 +234,13 @@ class Cart
 
   // End of public interface
   private:
-  uint8_t *prg_;
-  uint8_t *chr_;
-  long prg_size_;
-  long chr_size_;
-  unsigned mapper;
+  // Null-initialized so ~Cart()'s free(prg_) is safe even if a ROM is never
+  // loaded (e.g. emulator initialization throws before loadRom assigns prg_).
+  uint8_t *prg_ = nullptr;
+  uint8_t *chr_ = nullptr;
+  long prg_size_ = 0;
+  long chr_size_ = 0;
+  unsigned mapper = 0;
 };
 
 } // namespace quickerNES
