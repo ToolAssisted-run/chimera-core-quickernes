@@ -1078,8 +1078,13 @@ class Core : private Cpu
   void cpu_write_2007(int data);
 
   private:
-  unsigned char data_reader_mapped[page_count + 1]; // extra entry for overflow
-  unsigned char data_writer_mapped[page_count + 1];
+  // Zero-initialized: add_mapper_intercept only ORs bits in, so un-intercepted pages would otherwise
+  // hold uninitialised per-instance garbage that cpu_read/cpu_write branch on. That garbage is NOT part
+  // of the serialized state, so a state loaded by another thread (search) or process (jaffar-player)
+  // read different values -> nondeterministic execution / replay divergence. Value-init makes every
+  // emulator instance start identical and deterministic.
+  unsigned char data_reader_mapped[page_count + 1] = {}; // extra entry for overflow
+  unsigned char data_writer_mapped[page_count + 1] = {};
 };
 
 inline int Core::cpu_read(nes_addr_t addr, nes_time_t time)
