@@ -497,6 +497,13 @@ void Ppu_Rendering::draw_background(int start, int count)
 
     if (visible > 0)
     {
+      // draw_scanlines only memsets sprite_scanlines when called with start==0, which the render-ON
+      // path always does but this offscreen (render-OFF) path never does (it starts at start+skip).
+      // Without this, sprite_scanlines is read UNINITIALIZED here -> heap garbage that depends on
+      // allocation layout, so the SAME solution's sprite-0-hit ($2002 bit 6) -- and thus CPU
+      // execution -- diverges across configs/builds (and desyncs render-off from render-on). Match
+      // the render-ON initialization so render-off sprite-0 hit is faithful and reproducible.
+      memset(sprite_scanlines, max_sprites - sprite_limit, image_height);
       run_hblank(skip);
       draw_scanlines(start + skip, visible, impl->mini_offscreen, buffer_width, 3);
     }

@@ -218,6 +218,11 @@ loop:
   *((uint16_t*)&instruction) = *((uint16_t*)(&flat_code_map[pc++]));
   data = *(uint8_t*)&instruction.data;
 
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+  // bad access = fetched from RAM/regs, or an unofficial opcode -- legit code does neither.
+  if (badAccessLatch == 0 && ((pc - 1) < 0x8000u || cpu_isOfficialOpcode[instruction.opcode] == 0)) badAccessLatch = 1;
+#endif
+
   if (clock_count >= clock_limit) [[unlikely]]
     goto stop;
 
@@ -1147,6 +1152,7 @@ loop:
   default:
     // case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62: case 0x72: case 0x92: case 0xB2: case 0xD2: case 0xF2:
     isCorrectExecution = false;
+    haltLatch          = 1; // sticky: a jammed 6502 stays frozen until RESET (see cpu.hpp)
     goto stop;
 
     // Unimplemented

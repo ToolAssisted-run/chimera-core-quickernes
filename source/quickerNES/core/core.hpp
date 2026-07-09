@@ -96,6 +96,19 @@ class Core : private Cpu
   size_t _NTABBlockSize = 0x1000;
   size_t _SRAMBlockSize = impl->sram_size;
 
+  /// Pointer to the CPU's sticky halt latch (set on KIL/JAM execution, cleared only by reset). Exposed
+  /// so frontends can register it as an inspectable property and fail states that jammed the CPU.
+  uint8_t *getHaltLatchPtr() { return &haltLatch; }
+
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+  /// Pointer to the per-frame bad-access flag (set when this frame executed an unofficial opcode or
+  /// fetched code from RAM -- i.e. control flow derailed into data-as-code). For the glitch search.
+  uint8_t *getBadAccessPtr() { return &badAccessLatch; }
+#endif
+
+  /// Reads a byte from the CPU-visible code map (honors current PRG banking). For trace/audit tools.
+  uint8_t peekCode(uint16_t addr) { return *get_code(addr); }
+
   // Flags for lite state storage
   bool TIMEBlockEnabled = true;
   bool CPURBlockEnabled = true;
@@ -108,6 +121,11 @@ class Core : private Cpu
   bool NTABBlockEnabled = true;
   bool CHRRBlockEnabled = true;
   bool SRAMBlockEnabled = true;
+  // When false (default), the state uses the light original serialization (base ppu_state_t + spr_ram,
+  // no CPU/PPU/APU timing extras) -- lossless for normal play and ~850 B smaller. When true (opt-in via
+  // the "Precise State Timing" config key), the full lossless serialization is used so a deserialized
+  // replay matches a live run even in glitch/derailed-execution regions (needed for the PoP glitch hunt).
+  bool preciseTiming = false;
 
   // APU and Joypad
   enum controllerType_t
@@ -137,7 +155,7 @@ class Core : private Cpu
   {
     if (!impl)
     {
-      impl = new (std::nothrow) impl_t;
+      impl = new (std::nothrow) impl_t(); // value-initialize (zero PODs) so no emulator buffer is left as heap garbage
       if (!impl) return "Out of memory";
       memset(impl->sram, 0xFF, impl->sram_size);
       impl->apu.dmc_reader(read_dmc, this);
@@ -206,19 +224,29 @@ class Core : private Cpu
       s.x = r.x;
       s.y = r.y;
       s.p = r.status;
+      s.unused[0] = haltLatch; // sticky KIL/JAM latch travels with the state
 
       const auto inputDataSize = sizeof(cpu_state_t);
       const auto inputData = (uint8_t *)&s;
 
       serializer.pushContiguous(inputData, inputDataSize);
+
+      // CPU2 (preciseTiming only): transient CPU cycle/IRQ timing not in the 8-byte cpu_state_t.
+      if (preciseTiming)
+      {
+        serializer.pushContiguous(&clock_count, sizeof(clock_count));
+        serializer.pushContiguous(&clock_limit, sizeof(clock_limit));
+        serializer.pushContiguous(&irq_time_, sizeof(irq_time_));
+        serializer.pushContiguous(&end_time_, sizeof(end_time_));
+        serializer.pushContiguous(&isCorrectExecution, sizeof(isCorrectExecution));
+      }
     }
 
-    if (PPURBlockEnabled == true)
-    {
-      const auto inputDataSize = sizeof(ppu_state_t);
-      const auto inputData = (const uint8_t *)&ppu;
-      serializer.pushContiguous(inputData, inputDataSize);
-    }
+    // PPUR Block (light): base PPU registers/latches, used when preciseTiming is OFF. When ON, the
+    // whole-Ppu block at the very end supersedes it (captures all PPU timing/scheduler/sprite state).
+    if (PPURBlockEnabled == true && !preciseTiming)
+      serializer.pushContiguous((const uint8_t *)&ppu, sizeof(ppu_state_t));
+
 
     // APUR Block
     if (APURBlockEnabled == true)
@@ -229,6 +257,17 @@ class Core : private Cpu
       const auto inputDataSize = sizeof(Apu::apu_state_t);
       const auto inputData = (uint8_t *)&apuState;
       serializer.pushContiguous(inputData, inputDataSize);
+
+      // APU2: absolute APU cycle timing NOT in apu_state_t. last_dmc_time drives DMC DMA cycle-stealing
+      // and next_irq/earliest_irq_ the APU IRQ time -- both shift the CPU cycle alignment, so a glitch's
+      // derailed execution diverges on load if they are not restored.
+      if (preciseTiming)
+      {
+        serializer.pushContiguous(&impl->apu.last_time, sizeof(impl->apu.last_time));
+        serializer.pushContiguous(&impl->apu.last_dmc_time, sizeof(impl->apu.last_dmc_time));
+        serializer.pushContiguous(&impl->apu.earliest_irq_, sizeof(impl->apu.earliest_irq_));
+        serializer.pushContiguous(&impl->apu.next_irq, sizeof(impl->apu.next_irq));
+      }
     }
 
     // CTRL Block
@@ -237,6 +276,12 @@ class Core : private Cpu
       const auto inputDataSize = sizeof(input_state_t);
       const auto inputData = (uint8_t *)&input_state;
       serializer.pushContiguous(inputData, inputDataSize);
+      if (preciseTiming)
+      {
+        serializer.pushContiguous(current_joypad, sizeof current_joypad);
+        serializer.pushContiguous(&current_arkanoid_latch, sizeof(current_arkanoid_latch));
+        serializer.pushContiguous(&current_arkanoid_fire, sizeof(current_arkanoid_fire));
+      }
     }
 
     // MAPR Block
@@ -255,13 +300,9 @@ class Core : private Cpu
       serializer.push(inputData, inputDataSize);
     }
 
-    // SPRT Block
-    if (SPRTBlockEnabled == true)
-    {
-      const auto inputDataSize = Ppu::spr_ram_size;
-      const auto inputData = (uint8_t *)ppu.spr_ram;
-      serializer.push(inputData, inputDataSize);
-    }
+    // SPRT Block (light): sprite RAM, used when preciseTiming is OFF (else covered by whole-Ppu).
+    if (SPRTBlockEnabled == true && !preciseTiming)
+      serializer.push((uint8_t *)ppu.spr_ram, Ppu::spr_ram_size);
 
     // NTAB Block
     if (NTABBlockEnabled == true)
@@ -292,6 +333,12 @@ class Core : private Cpu
         serializer.push(inputData, inputDataSize);
       }
     }
+
+    // PPU state (last, after everything else): the entire Ppu scalar object is serialized in one shot.
+    // The 52-byte ppu_state_t alone drops a web of PPU frame-timing/scheduler/sprite-hit state that a
+    // glitch's derailed execution reads; the raw whole-object copy is guaranteed-lossless. Host pointers
+    // (rebuilt per instance) are restored on deserialize. Supersedes the old PPUR/SPRT/PPU2 blocks.
+    if (PPURBlockEnabled == true && preciseTiming) serializer.pushContiguous((const uint8_t *)&ppu, sizeof(Ppu));
   }
 
   inline void deserializeState(jaffarCommon::deserializer::Base &deserializer)
@@ -325,15 +372,22 @@ class Core : private Cpu
       r.x = s.x;
       r.y = s.y;
       r.status = s.p;
+      haltLatch = s.unused[0]; // sticky KIL/JAM latch travels with the state
+
+      if (preciseTiming)
+      {
+        deserializer.popContiguous(&clock_count, sizeof(clock_count));
+        deserializer.popContiguous(&clock_limit, sizeof(clock_limit));
+        deserializer.popContiguous(&irq_time_, sizeof(irq_time_));
+        deserializer.popContiguous(&end_time_, sizeof(end_time_));
+        deserializer.popContiguous(&isCorrectExecution, sizeof(isCorrectExecution));
+      }
     }
 
-    // PPUR Block
-    if (PPURBlockEnabled == true)
-    {
-      const auto outputData = (uint8_t *)&ppu;
-      const auto inputDataSize = sizeof(ppu_state_t);
-      deserializer.popContiguous(outputData, inputDataSize);
-    }
+    // PPUR Block (light): base PPU registers, used when preciseTiming is OFF (see serializeState).
+    if (PPURBlockEnabled == true && !preciseTiming)
+      deserializer.popContiguous((uint8_t *)&ppu, sizeof(ppu_state_t));
+
 
     // APUR Block
     if (APURBlockEnabled == true)
@@ -346,6 +400,14 @@ class Core : private Cpu
 
       impl->apu.load_state(apuState);
       impl->apu.end_frame(-(int)nes.timestamp / ppu_overclock);
+      // APU2: restore absolute timing AFTER load_state/end_frame recompute it (see serializeState).
+      if (preciseTiming)
+      {
+        deserializer.popContiguous(&impl->apu.last_time, sizeof(impl->apu.last_time));
+        deserializer.popContiguous(&impl->apu.last_dmc_time, sizeof(impl->apu.last_dmc_time));
+        deserializer.popContiguous(&impl->apu.earliest_irq_, sizeof(impl->apu.earliest_irq_));
+        deserializer.popContiguous(&impl->apu.next_irq, sizeof(impl->apu.next_irq));
+      }
     }
 
     // CTRL Block
@@ -354,6 +416,12 @@ class Core : private Cpu
       const auto outputData = (uint8_t *)&input_state;
       const auto inputDataSize = sizeof(input_state_t);
       deserializer.popContiguous(outputData, inputDataSize);
+      if (preciseTiming)
+      {
+        deserializer.popContiguous(current_joypad, sizeof current_joypad);
+        deserializer.popContiguous(&current_arkanoid_latch, sizeof(current_arkanoid_latch));
+        deserializer.popContiguous(&current_arkanoid_fire, sizeof(current_arkanoid_fire));
+      }
     }
 
     // MAPR Block
@@ -376,13 +444,9 @@ class Core : private Cpu
       deserializer.pop(outputData, inputDataSize);
     }
 
-    // SPRT Block
-    if (SPRTBlockEnabled == true)
-    {
-      const auto outputData = (uint8_t *)ppu.spr_ram;
-      const auto inputDataSize = Ppu::spr_ram_size;
-      deserializer.pop(outputData, inputDataSize);
-    }
+    // SPRT Block (light): sprite RAM, used when preciseTiming is OFF.
+    if (SPRTBlockEnabled == true && !preciseTiming)
+      deserializer.pop((uint8_t *)ppu.spr_ram, Ppu::spr_ram_size);
 
     // NTAB Block
     if (NTABBlockEnabled == true)
@@ -417,6 +481,36 @@ class Core : private Cpu
     }
 
     if (sram_present) enable_sram(true);
+
+    // PPU restore (see serializeState). Overwrite the entire Ppu scalar object with the saved state,
+    // then restore this instance's own host pointers (which the raw copy would otherwise clobber with the
+    // saving instance's addresses). Done LAST so nothing in the deserialize path re-derives it.
+    if (PPURBlockEnabled == true && preciseTiming)
+    {
+      auto s_nt0 = ppu.nt_banks[0]; auto s_nt1 = ppu.nt_banks[1];
+      auto s_nt2 = ppu.nt_banks[2]; auto s_nt3 = ppu.nt_banks[3];
+      auto s_hostpal = ppu.host_palette; auto s_impl = ppu.impl;
+      auto s_chrdata = ppu.chr_data; auto s_chrram = ppu.chr_ram;
+      auto s_tc = ppu.tile_cache; auto s_ft = ppu.flipped_tiles; auto s_tcm = ppu.tile_cache_mem;
+      auto s_hp = ppu.host_pixels; auto s_sp = ppu.scanline_pixels;
+
+      // The Ppu also holds a `Core &emu` reference (stored as a hidden pointer to THIS Core). The raw
+      // copy clobbers it; find its slot (the one holding a pointer == this) so we can put `this` back.
+      Core *self = this; size_t emuOff = (size_t)-1;
+      for (size_t o = 0; o + sizeof(Core *) <= sizeof(Ppu); o++)
+      { Core *p; memcpy(&p, (char *)&ppu + o, sizeof p); if (p == self) { emuOff = o; break; } }
+
+      deserializer.popContiguous((uint8_t *)&ppu, sizeof(Ppu));
+
+      if (emuOff != (size_t)-1) memcpy((char *)&ppu + emuOff, &self, sizeof self);
+      ppu.nt_banks[0] = s_nt0; ppu.nt_banks[1] = s_nt1;
+      ppu.nt_banks[2] = s_nt2; ppu.nt_banks[3] = s_nt3;
+      ppu.host_palette = s_hostpal; ppu.impl = s_impl;
+      ppu.chr_data = s_chrdata; ppu.chr_ram = s_chrram;
+      ppu.tile_cache = s_tc; ppu.flipped_tiles = s_ft; ppu.tile_cache_mem = s_tcm;
+      ppu.host_pixels = s_hp; ppu.scanline_pixels = s_sp;
+      ppu.all_tiles_modified(); // rebuild the (per-instance) tile cache from the restored CHR on next render
+    }
   }
 
   void setNTABBlockSize(const size_t size) { _NTABBlockSize = size; }
@@ -612,10 +706,15 @@ class Core : private Cpu
     joypad_read_count = 0;
 #endif
 
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+    badAccessLatch = 0; // per-frame: report only derails caused by THIS frame's advance
+#endif
+
     current_joypad[0] = joypad1;
     current_joypad[1] = joypad2;
     current_arkanoid_latch = arkanoid_latch;
     current_arkanoid_fire = arkanoid_fire;
+
 
     cpu_time_offset = ppu.begin_frame(nes.timestamp) - 1;
     ppu_2002_time = 0;
@@ -821,6 +920,11 @@ class Core : private Cpu
   {
     if ((addr & 0xFFFE) == 0x4016)
     {
+      // For performance's sake, this counter is only kept on demand
+      #ifdef _QUICKERNES_DETECT_JOYPAD_READS
+            joypad_read_count++;
+      #endif
+
       // to do: to aid with recording, doesn't emulate transparent latch,
       // so a game that held strobe at 1 and read $4016 or $4017 would not get
       // the current A status as occurs on a NES

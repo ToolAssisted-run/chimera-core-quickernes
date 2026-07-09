@@ -21,6 +21,11 @@ class Ppu : public Ppu_Rendering
 {
   typedef Ppu_Rendering base;
 
+  // Grant Core access to the persistent frame-timing accumulators (burst_phase / frame_length_extra),
+  // which drive cross-frame CPU/PPU clock alignment (NMI timing) and MUST be serialized to make
+  // save/load lossless in glitch regions -- see Core::serializeState PPU2 block.
+  friend class Core;
+
   public:
   Ppu(Core *);
 
@@ -122,6 +127,15 @@ inline void Ppu::suspend_rendering()
 inline Ppu::Ppu(Core *e) : emu(*e)
 {
   burst_phase = 0;
+  // Deterministically initialize the persistent frame-timing accumulators. Previously these were left
+  // as heap garbage, which is invisible in normal play (it converges) but makes glitch/crash regions
+  // depend on allocation layout -> the SAME solution reproduces differently across configs/builds.
+  // Fixed values make emulation reproducible regardless of heap state (paired with PPU2 serialization).
+  frame_length_      = 0;
+  frame_length_extra = 0;
+  frame_phase        = 0;
+  end_vbl_mask       = ~0;
+  frame_ended        = false;
   suspend_rendering();
 }
 

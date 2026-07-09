@@ -18,6 +18,12 @@ class NESInstance final : public NESInstanceBase
   uint8_t *getLowMem() override { return _nes.get_low_mem(); };
   size_t getLowMemSize() const override { return _nes.get_low_mem_size(); };
 
+  uint8_t *getHaltLatchPtr() override { return _nes.get_halt_latch_ptr(); };
+
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+  uint8_t *getBadAccessPtr() override { return _nes.get_bad_access_ptr(); }
+#endif
+
   uint8_t *getWorkMem() const { return _nes.high_mem(); };
   size_t getWorkMemSize() const { return _nes.get_high_mem_size(); };
 
@@ -58,6 +64,7 @@ class NESInstance final : public NESInstanceBase
   }
 
   void setNTABBlockSize(const size_t size) override { _nes.setNTABBlockSize(size); }
+  void setPreciseTiming(bool v) { _nes.setPreciseTiming(v); }
   void setSRAMBlockSize(const size_t size) override { _nes.setSRAMBlockSize(size); }
 
   void useFlatCodeMap() override

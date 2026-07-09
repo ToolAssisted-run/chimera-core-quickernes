@@ -30,6 +30,7 @@ static_assert(sizeof(ppu_state_t) == 20 + 0x20);
 
 class Ppu_Impl : public ppu_state_t
 {
+  friend class Core; // Core serializes the whole Ppu (see Core::serializeState)
   public:
   Ppu_Impl();
   ~Ppu_Impl();

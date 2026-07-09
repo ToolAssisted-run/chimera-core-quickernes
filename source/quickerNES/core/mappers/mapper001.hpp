@@ -44,16 +44,29 @@ class Mapper001 : public Mapper, mmc1_state_t
     regs[1] = 0x00;
     regs[2] = 0x01;
     regs[3] = 0x00;
+    lastWriteTime = -4;
   }
 
   virtual void apply_mapping()
   {
     enable_sram(); // early MMC1 always had SRAM enabled
+    // lastWriteTime is intentionally NOT serialized (an RMW write pair never straddles a savestate);
+    // reset it here so a freshly deserialized mapper never inherits the producing thread's value.
+    lastWriteTime = -4;
     register_changed(0);
   }
 
-  virtual void write(nes_time_t, nes_addr_t addr, int data)
+  virtual void write(nes_time_t time, nes_addr_t addr, int data)
   {
+    // Real MMC1 ignores writes on consecutive CPU cycles: a read-modify-write instruction's double
+    // write (e.g. the unofficial ISC/SLO hitting $8000-$FFFF when a glitch executes data as code)
+    // must only latch its FIRST (unmodified) value, as on hardware and accuracy-reference emulators.
+    // Both writes of an RMW pair arrive here carrying the same instruction timestamp, while distinct
+    // store instructions are always >= 4 cycles apart, so a <2-cycle window detects exactly the pair.
+    // Time is frame-relative and resets between frames, hence the monotonicity check.
+    if (time >= lastWriteTime && time - lastWriteTime < 2) return;
+    lastWriteTime = time;
+
     if (!(data & 0x80))
     {
       buf |= (data & 1) << bit;
@@ -78,6 +91,9 @@ class Mapper001 : public Mapper, mmc1_state_t
       register_changed(0);
     }
   }
+
+  // Time of the last accepted serial-port write (frame-relative CPU time). Not part of mmc1_state_t.
+  nes_time_t lastWriteTime = -4;
 
   void register_changed(int reg)
   {

@@ -64,6 +64,12 @@ class NESInstanceBase
   virtual uint8_t *getLowMem() = 0;
   virtual size_t getLowMemSize() const = 0;
 
+  /// CPU sticky halt latch pointer (KIL/JAM executed). Cores that do not track it return nullptr.
+  virtual uint8_t *getHaltLatchPtr() { return nullptr; }
+
+  /// CPU per-frame bad-access flag pointer (unofficial opcode / RAM execution this frame). nullptr if untracked.
+  virtual uint8_t *getBadAccessPtr() { return nullptr; }
+
   virtual void serializeState(jaffarCommon::serializer::Base &serializer) const = 0;
   virtual void deserializeState(jaffarCommon::deserializer::Base &deserializer) = 0;
 

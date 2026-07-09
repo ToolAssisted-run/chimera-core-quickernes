@@ -10,6 +10,7 @@ namespace quickerNES
 
 class Ppu_Rendering : public Ppu_Impl
 {
+  friend class Core; // Core serializes the whole Ppu (see Core::serializeState)
   typedef Ppu_Impl base;
 
   public:

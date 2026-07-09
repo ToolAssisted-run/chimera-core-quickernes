@@ -51,6 +51,7 @@ class Emu
   void serializeState(jaffarCommon::serializer::Base &serializer) const { emu.serializeState(serializer); }
   void deserializeState(jaffarCommon::deserializer::Base &deserializer) { emu.deserializeState(deserializer); }
   void setNTABBlockSize(const size_t size) { emu.setNTABBlockSize(size); }
+  void setPreciseTiming(bool v) { emu.preciseTiming = v; }
   void setSRAMBlockSize(const size_t size) { emu.setSRAMBlockSize(size); }
   void enableStateBlock(const std::string &block) { emu.enableStateBlock(block); };
   void disableStateBlock(const std::string &block) { emu.disableStateBlock(block); };
@@ -222,6 +223,17 @@ class Emu
 
   uint8_t *get_low_mem() const { return (uint8_t *)emu.low_mem; }
   size_t get_low_mem_size() const { return low_mem_size; }
+
+  /// CPU sticky halt latch (KIL/JAM executed; only reset clears it). See Cpu::haltLatch.
+  uint8_t *get_halt_latch_ptr() { return emu.getHaltLatchPtr(); }
+
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+  /// CPU per-frame bad-access flag (unofficial opcode or RAM execution this frame). See Cpu::badAccessLatch.
+  uint8_t *get_bad_access_ptr() { return emu.getBadAccessPtr(); }
+#endif
+
+  /// Reads a byte from the CPU-visible code map (honors current PRG banking). For trace/audit tools.
+  uint8_t peek_code(uint16_t addr) { return emu.peekCode(addr); }
 
   // Optional 8K memory
   enum

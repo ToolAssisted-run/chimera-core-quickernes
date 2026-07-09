@@ -13,6 +13,35 @@ namespace quickerNES
 typedef long nes_time_t;     // clock cycle count
 typedef unsigned nes_addr_t; // 16-bit address
 
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+// Bad-access detector (glitch investigation). "Bad access" = the CPU fetches an instruction that
+// legitimate game code never executes: an unofficial/undocumented 6502 opcode, or an opcode fetched
+// from RAM/registers ($0000-$7FFF). Either means control flow has derailed into data-as-code -- the
+// hallmark of the U+X action-pointer glitch. Emulator-independent at the detection boundary (the
+// opcode byte at a given PC is deterministic; only the later *semantics* of unofficial ops diverge
+// between cores), and it needs no training set, so novel-but-legit exploration cannot false-positive.
+// isOfficialOpcode[b] == 1 for the 151 documented NMOS 6502 opcodes, 0 for the other 105.
+inline constexpr uint8_t cpu_isOfficialOpcode[256] = {
+  // built from the documented opcode set; 1 = official, 0 = unofficial
+  /*0x00*/ 1,1,0,0,0,1,1,0, 1,1,1,0,0,1,1,0, // BRK ORA -   -   -   ORA ASL -   PHP ORA ASL -   -   ORA ASL -
+  /*0x10*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BPL ORA -   -   -   ORA ASL -   CLC ORA -   -   -   ORA ASL -
+  /*0x20*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // JSR AND -   -   BIT AND ROL -   PLP AND ROL -   BIT AND ROL -
+  /*0x30*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BMI AND -   -   -   AND ROL -   SEC AND -   -   -   AND ROL -
+  /*0x40*/ 1,1,0,0,0,1,1,0, 1,1,1,0,1,1,1,0, // RTI EOR -   -   -   EOR LSR -   PHA EOR LSR -   JMP EOR LSR -
+  /*0x50*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BVC EOR -   -   -   EOR LSR -   CLI EOR -   -   -   EOR LSR -
+  /*0x60*/ 1,1,0,0,0,1,1,0, 1,1,1,0,1,1,1,0, // RTS ADC -   -   -   ADC ROR -   PLA ADC ROR -   JMP ADC ROR -
+  /*0x70*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BVS ADC -   -   -   ADC ROR -   SEI ADC -   -   -   ADC ROR -
+  /*0x80*/ 0,1,0,0,1,1,1,0, 1,0,1,0,1,1,1,0, // -   STA -   -   STY STA STX -   DEY -   TXA -   STY STA STX -
+  /*0x90*/ 1,1,0,0,1,1,1,0, 1,1,1,0,0,1,0,0, // BCC STA -   -   STY STA STX -   TYA STA TXS -   -   STA -   -
+  /*0xA0*/ 1,1,1,0,1,1,1,0, 1,1,1,0,1,1,1,0, // LDY LDA LDX -   LDY LDA LDX -   TAY LDA TAX -   LDY LDA LDX -
+  /*0xB0*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // BCS LDA -   -   LDY LDA LDX -   CLV LDA TSX -   LDY LDA LDX -
+  /*0xC0*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // CPY CMP -   -   CPY CMP DEC -   INY CMP DEX -   CPY CMP DEC -
+  /*0xD0*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BNE CMP -   -   -   CMP DEC -   CLD CMP -   -   -   CMP DEC -
+  /*0xE0*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // CPX SBC -   -   CPX SBC INC -   INX SBC NOP -   CPX SBC INC -
+  /*0xF0*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BEQ SBC -   -   -   SBC INC -   SED SBC -   -   -   SBC INC -
+};
+#endif
+
 class Cpu
 {
   public:
@@ -22,7 +51,9 @@ class Cpu
     tracecb = cb;
   }
 
-  void (*tracecb)(unsigned int *dest);
+  // Per-instruction trace hook (only invoked in _QUICKERNES_ENABLE_TRACEBACK_SUPPORT builds). Must be
+  // value-initialized: an indeterminate pointer here made traceback builds call garbage during boot.
+  void (*tracecb)(unsigned int *dest) = nullptr;
 
   // NES 6502 registers. *Not* kept updated during a call to run().
   struct registers_t
@@ -182,6 +213,21 @@ class Cpu
   registers_t r;
   bool isCorrectExecution = true;
 
+  // Sticky halt latch: set when the CPU executes a KIL/JAM (or any unimplemented) opcode and never
+  // cleared by run() -- on real hardware a jammed 6502 stays frozen (NMI/IRQ are not serviced) until
+  // RESET, whereas this emulator's frame loop would otherwise revive the game at the next NMI vector.
+  // Consumers (e.g. a search driver) must treat a set latch as a dead/invalid state. Serialized with
+  // the CPUR block (cpu_state_t.unused[0]) so it travels with savestates.
+  uint8_t haltLatch = 0;
+
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+  // Per-frame bad-access flag (see cpu_isOfficialOpcode). NOT sticky and NOT serialized: reset to 0
+  // at the start of every emulate_frame and set the instant a bad fetch is executed, so it reports
+  // "did THIS frame derail into data-as-code" -- exactly the win signal for the glitch search, and
+  // recomputed from the (serialized) machine state each advance so it never leaks across branches.
+  uint8_t badAccessLatch = 0;
+#endif
+
   // low_mem is a full page size so it can be mapped with code_map
   uint8_t low_mem[page_size > 0x800 ? page_size : 0x800];
 
@@ -240,6 +286,7 @@ class Cpu
       set_code_page(i, (uint8_t *)unmapped_page);
 
     isCorrectExecution = true;
+    haltLatch          = 0; // only RESET recovers a jammed CPU
   }
 };
 

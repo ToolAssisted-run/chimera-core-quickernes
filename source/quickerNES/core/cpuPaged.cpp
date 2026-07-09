@@ -255,6 +255,12 @@ loop:
   opcode = page[pc++];
   data = page[pc];
 
+#ifdef _QUICKERNES_DETECT_BAD_ACCESS
+  // bad access = fetched from RAM/regs, or an unofficial opcode -- legit code does neither.
+  // Fetch address is pc-1 (pc was just post-incremented). Checked only until first hit (cheap).
+  if (badAccessLatch == 0 && ((pc - 1) < 0x8000u || cpu_isOfficialOpcode[opcode] == 0)) badAccessLatch = 1;
+#endif
+
   if (clock_count >= clock_limit) [[unlikely]]
     goto stop;
 
@@ -1184,6 +1190,7 @@ loop:
   default:
     // case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62: case 0x72: case 0x92: case 0xB2: case 0xD2: case 0xF2:
     isCorrectExecution = false;
+    haltLatch          = 1; // sticky: a jammed 6502 stays frozen until RESET (see cpu.hpp)
     goto stop;
 
     // Unimplemented
