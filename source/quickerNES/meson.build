@@ -38,6 +38,12 @@ if get_option('enableArkanoidInputs') == true
  quickerNESCompileArgs += '-D_QUICKERNES_SUPPORT_ARKANOID_INPUTS'
 endif
 
+# Study tracers (env-gated RE aids in the CPU core). Per-instruction checks cost ~30% throughput
+# even when the env vars are unset, so they are compiled out unless explicitly requested.
+if get_option('enableStudyTracers') == true
+ quickerNESCompileArgs += '-D_QUICKERNES_STUDY_TRACERS'
+endif
+
 # quickerNES Core Configuration
 
  quickerNESDependency = declare_dependency(

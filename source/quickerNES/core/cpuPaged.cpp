@@ -1,11 +1,94 @@
 // Emu 0.7.0. http://www.slack.net/~ant/nes-emu/
 
-#include "cpu.hpp"
 #include "core.hpp"
+#include "cpu.hpp"
 #include <limits.h>
 #include <stdio.h>
+#ifdef _QUICKERNES_STUDY_TRACERS
+  #include <stdlib.h>
+#endif // _QUICKERNES_STUDY_TRACERS
 #include <string.h>
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+// PIN_TRACE: env-gated study aid for the NES Pinball score-warp trick. When the env var PIN_TRACE
+// is set to a file path, every instruction fetched from work RAM (PC < 0x0800) is logged there --
+// the game normally runs a short JSR $00E3 note-jump each frame, but the timed-NMI trick leaves the
+// processor "walking" through the scratch page as instructions. Harmless (no logic change) unless the
+// env var is present; the getenv is cached once so the hot path stays a single pointer test.
+static FILE *g_pinTrace = nullptr;
+static int g_pinTraceInit = 0;
+static inline FILE *pinTraceFile()
+{
+  if (g_pinTraceInit == 0)
+  {
+    g_pinTraceInit = 1;
+    const char *p = getenv("PIN_TRACE");
+    if (p != nullptr && p[0] != '\0') g_pinTrace = fopen(p, "w");
+  }
+  return g_pinTrace;
+}
+
+// PIN_CYCLE: env-gated study aid for the score-warp TIMING race. Logs, in execution order, every
+// change to $00E3 (a write -- the game's 4C jump-note or the NMI's timer value) and every JSR that
+// lands on $00E3 (the read that decides safe-vs-warp). Because the log is in execution order, the
+// ordering of "game writes 4C" / "NMI writes timer" / "JSR reads" is captured directly -- that
+// ordering IS the race, independent of the per-run clock_count resets. clk gives intra-segment margin.
+static FILE *g_pinCycle = nullptr;
+static int g_pinCycleInit = 0;
+static uint8_t g_prevE3 = 0x4C;
+static unsigned g_prevPC = 0;
+
+// PIN_PROTECT_FLIP: causality test for the flipper-jam. When set, any write to the flipper bytes
+// $00C0..$00C5 made by an instruction fetched from RAM (the score-walk) is UNDONE, while writes from
+// normal ROM code (the flipper routines) are allowed. Lets us see whether sparing the flipper from the
+// walk keeps the ball farmable -- i.e. whether a boost that misses the flipper region would work.
+static int g_pinProtectFlip = -1;
+static uint8_t g_flipSave[6] = {0, 0, 0, 0, 0, 0};
+// MM_TRACE: env-gated study aid for Marble Madness RE. MM_TRACE=<file> enables it; MM_WATCH is a
+// comma-separated list of hex low-RAM addresses (0x000-0x7FF). At every instruction boundary each
+// watched byte is compared against a shadow copy; on change a line is logged attributing the write to
+// the previous instruction (its fetch PC and first 3 code bytes, so the PRG bank can be identified
+// offline by byte-matching). Watching 0x0A (the frame counter) yields per-frame markers for free.
+static FILE *g_mmTrace = nullptr;
+static int g_mmTraceInit = 0;
+static uint16_t g_mmWatch[64];
+static uint8_t g_mmShadow[64];
+static int g_mmWatchN = 0;
+static unsigned g_mmPrevPC = 0;
+static uint8_t g_mmPrevBytes[3] = {0, 0, 0};
+static inline FILE *mmTraceFile()
+{
+  if (g_mmTraceInit == 0)
+  {
+    g_mmTraceInit = 1;
+    const char *p = getenv("MM_TRACE");
+    if (p != nullptr && p[0] != '\0')
+    {
+      g_mmTrace = fopen(p, "w");
+      const char *w = getenv("MM_WATCH");
+      while (w != nullptr && *w != '\0' && g_mmWatchN < 64)
+      {
+        unsigned v = (unsigned)strtoul(w, (char **)&w, 16);
+        g_mmWatch[g_mmWatchN++] = (uint16_t)(v & 0x7FF);
+        while (*w == ',' || *w == ' ') w++;
+      }
+    }
+  }
+  return g_mmTrace;
+}
+
+static inline FILE *pinCycleFile()
+{
+  if (g_pinCycleInit == 0)
+  {
+    g_pinCycleInit = 1;
+    const char *p = getenv("PIN_CYCLE");
+    if (p != nullptr && p[0] != '\0') g_pinCycle = fopen(p, "w");
+  }
+  return g_pinCycle;
+}
+
+#endif // _QUICKERNES_STUDY_TRACERS
 /**
  * Optimizations by Sergio Martin (eien86) 2023-2024
  * The license below (LGPLv2) applies.
@@ -139,7 +222,6 @@ namespace quickerNES
     goto loop;                              \
   }
 
-
 // Note: 'addr' is evaulated more than once in the following macros, so it
 // must not contain side-effects.
 
@@ -203,7 +285,8 @@ inline void Cpu::write(nes_addr_t addr, int value)
 // it after writes that reach cartridge space (see WRITE / CPU_PAGE_CACHE_INVALIDATE
 // above). addr is required to be side-effect free (see note above).
 #undef CPU_PAGE_CACHE_INVALIDATE
-#define CPU_PAGE_CACHE_INVALIDATE(addr) if ((addr) >= 0x4020) cachedPageIdx = ~0u;
+#define CPU_PAGE_CACHE_INVALIDATE(addr) \
+  if ((addr) >= 0x4020) cachedPageIdx = ~0u;
 
 // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
 #if defined(__GNUC__) && !defined(__clang__)
@@ -215,6 +298,11 @@ Cpu::runPaged(nes_time_t end)
   set_end_time_(end);
   clock_count = 0;
   isCorrectExecution = true;
+#ifdef _QUICKERNES_STUDY_TRACERS
+  pinTraceFile(); // PIN_TRACE study aid: one-time lazy open of the trace file (no-op unless env set)
+  pinCycleFile(); // PIN_CYCLE study aid: one-time lazy open of the $00E3-race trace (no-op unless env set)
+  mmTraceFile();  // MM_TRACE study aid: one-time lazy open of the watchpoint trace (no-op unless env set)
+#endif            // _QUICKERNES_STUDY_TRACERS
 
   volatile result_t result = result_cycles;
 
@@ -244,17 +332,97 @@ Cpu::runPaged(nes_time_t end)
 
 loop:
 
+{
+  uint32_t pageIdx = pc >> page_bits;
+  if (pageIdx != cachedPageIdx) [[unlikely]]
   {
-    uint32_t pageIdx = pc >> page_bits;
-    if (pageIdx != cachedPageIdx) [[unlikely]]
-    {
-      cachedPageIdx = pageIdx;
-      page = code_map[pageIdx];
-    }
+    cachedPageIdx = pageIdx;
+    page = code_map[pageIdx];
   }
+}
   opcode = page[pc++];
   data = page[pc];
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+  // Per-frame RAM-execution counter (data-as-code walk detector). PC-1 is the fetch address.
+  if ((pc - 1) < 0x0800u && ramExecCount < 0xFFFF) ramExecCount++;
+
+  // MM_TRACE study aid: shadow-compare each watched low-RAM byte; attribute a change to the previous
+  // instruction (g_mmPrevPC / g_mmPrevBytes). frame = low_mem[0x0A] (game's frame counter).
+  if (g_mmTrace != nullptr)
+  {
+    for (int wi = 0; wi < g_mmWatchN; wi++)
+    {
+      uint8_t v = low_mem[g_mmWatch[wi]];
+      if (v != g_mmShadow[wi])
+      {
+        fprintf(g_mmTrace, "W %04X %02X->%02X byPC=%04X by=%02X%02X%02X f=%02X clk=%ld\n", (unsigned)g_mmWatch[wi], g_mmShadow[wi], v, g_mmPrevPC, g_mmPrevBytes[0], g_mmPrevBytes[1], g_mmPrevBytes[2], (unsigned)low_mem[0x0A], (long)clock_count);
+        g_mmShadow[wi] = v;
+      }
+    }
+    g_mmPrevPC = pc - 1;
+    g_mmPrevBytes[0] = opcode;
+    g_mmPrevBytes[1] = (uint8_t)data;
+    g_mmPrevBytes[2] = page[pc + 1];
+  }
+
+  // PIN_CYCLE study aid: log the $00E3 race in execution order. A change vs g_prevE3 = a write by the
+  // previous instruction (g_prevPC identifies it: ROM >=0x8000 => NMI handler / game code); PC==$00E3
+  // = the JSR read that decides safe(4C) vs warp(!=4C).
+  if (g_pinCycle != nullptr)
+  {
+    uint8_t e3now = low_mem[0x00E3];
+    if (e3now != g_prevE3)
+    {
+      fprintf(g_pinCycle, "WR clk=%ld byPC=%04X old=%02X new=%02X\n", (long)clock_count, g_prevPC, g_prevE3, e3now);
+      g_prevE3 = e3now;
+    }
+    if ((pc - 1) == 0x00E3u)
+      fprintf(g_pinCycle, "RD clk=%ld val=%02X %s\n", (long)clock_count, e3now, e3now == 0x4C ? "safe" : "WARP");
+    // Watch the flipper-state bytes 0xC0..0xC5: log any write to them (walk corrupts them to 0xFF).
+    static uint8_t prevFlip[6] = {0, 0, 0, 0, 0, 0};
+    for (int fi = 0; fi < 6; fi++)
+    {
+      uint8_t v = low_mem[0x00C0 + fi];
+      if (v != prevFlip[fi])
+      {
+        fprintf(g_pinCycle, "FLIP $%03X: %02X->%02X byPC=%04X pcNow=%04X\n", 0x00C0 + fi, prevFlip[fi], v, g_prevPC, (unsigned)(pc - 1));
+        prevFlip[fi] = v;
+      }
+    }
+    g_prevPC = pc - 1;
+  }
+
+  // PIN_PROTECT_FLIP causality test (independent of PIN_CYCLE): undo any flipper-byte write made by the
+  // previous instruction if that instruction was fetched from RAM (the walk). g_prevPC is the previous
+  // fetch address; ROM (>=0x8000) writes are kept and re-baselined, RAM writes are reverted.
+  if (g_pinProtectFlip == -1)
+  {
+    const char *p = getenv("PIN_PROTECT_FLIP");
+    g_pinProtectFlip = (p && p[0] && p[0] != '0') ? 1 : 0;
+  }
+  if (g_pinProtectFlip == 1)
+  {
+    bool prevFromRAM = (g_prevPC < 0x0800u);
+    for (int fi = 0; fi < 6; fi++)
+    {
+      uint8_t v = low_mem[0x00C0 + fi];
+      if (v != g_flipSave[fi])
+      {
+        if (prevFromRAM)
+          low_mem[0x00C0 + fi] = g_flipSave[fi]; // revert walk's corruption
+        else
+          g_flipSave[fi] = v; // accept ROM flipper-logic update
+      }
+    }
+    g_prevPC = pc - 1;
+  }
+
+  // PIN_TRACE study aid: log instructions executing out of work RAM (the score-warp walk).
+  if (g_pinTrace != nullptr && (pc - 1) < 0x0800u)
+    fprintf(g_pinTrace, "clk=%ld pc=%04X op=%02X nb=%02X a=%02X x=%02X y=%02X sp=%02X p=%02X e3=%02X s100=%02X\n", (long)clock_count, (unsigned)(pc - 1), opcode, (unsigned)data, (unsigned)(a & 0xFF), (unsigned)(x & 0xFF), (unsigned)(y & 0xFF), (unsigned)((sp - 1) & 0xFF), 0, (unsigned)low_mem[0x00E3], (unsigned)low_mem[0x0100]);
+
+#endif // _QUICKERNES_STUDY_TRACERS
 #ifdef _QUICKERNES_DETECT_BAD_ACCESS
   // bad access = fetched from RAM/regs, or an unofficial opcode -- legit code does neither.
   // Fetch address is pc-1 (pc was just post-incremented). Checked only until first hit (cheap).
@@ -1190,7 +1358,7 @@ loop:
   default:
     // case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62: case 0x72: case 0x92: case 0xB2: case 0xD2: case 0xF2:
     isCorrectExecution = false;
-    haltLatch          = 1; // sticky: a jammed 6502 stays frozen until RESET (see cpu.hpp)
+    haltLatch = 1; // sticky: a jammed 6502 stays frozen until RESET (see cpu.hpp)
     goto stop;
 
     // Unimplemented

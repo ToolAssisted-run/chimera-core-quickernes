@@ -22,7 +22,7 @@ class Emu
   // Basic setup
 
   // Load iNES file into emulator and clear recording
-  const char* load_ines(const uint8_t *buffer, const uint32_t length);
+  const char *load_ines(const uint8_t *buffer, const uint32_t length);
 
   // Set sample rate for sound generation
   const char *set_sample_rate(long);
@@ -232,6 +232,15 @@ class Emu
   uint8_t *get_bad_access_ptr() { return emu.getBadAccessPtr(); }
 #endif
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+  /// CPU per-frame count of instructions executed from work RAM (data-as-code walk). See Cpu::ramExecCount.
+  /// Always available (not gated by the bad-access flag).
+  uint16_t *get_ram_exec_count_ptr() { return emu.getRamExecCountPtr(); }
+
+  /// Packed frame-timing accumulators (burst_phase, frame_length_extra) for hashing NMI-timing state.
+  uint8_t *get_timing_hash_ptr() { return emu.getTimingHashPtr(); }
+
+#endif // _QUICKERNES_STUDY_TRACERS
   /// Reads a byte from the CPU-visible code map (honors current PRG banking). For trace/audit tools.
   uint8_t peek_code(uint16_t addr) { return emu.peekCode(addr); }
 

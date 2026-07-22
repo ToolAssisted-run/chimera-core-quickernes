@@ -1,7 +1,7 @@
 // Emu 0.7.0. http://www.slack.net/~ant/nes-emu/
 
-#include "cpu.hpp"
 #include "core.hpp"
+#include "cpu.hpp"
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -123,18 +123,18 @@ namespace quickerNES
     imm##op:
 
 // Adding likely to fail because typically for loops exit conditions fail until the last one
-#define BRANCH(cond)                        \
-  {                                         \
+#define BRANCH(cond)                                    \
+  {                                                     \
     int extra_clock = (++pc & 0xFF) + instruction.data; \
-    if (!(cond))                            \
-    {                                       \
-      clock_count--;                        \
-      goto loop;                            \
-    }                                       \
-    pc += instruction.data;                           \
-    pc = uint16_t(pc);                      \
-    clock_count += (extra_clock >> 8) & 1;  \
-    goto loop;                              \
+    if (!(cond))                                        \
+    {                                                   \
+      clock_count--;                                    \
+      goto loop;                                        \
+    }                                                   \
+    pc += instruction.data;                             \
+    pc = uint16_t(pc);                                  \
+    clock_count += (extra_clock >> 8) & 1;              \
+    goto loop;                                          \
   }
 
 // Note: 'addr' is evaulated more than once in the following macros, so it
@@ -177,7 +177,6 @@ namespace quickerNES
     nz |= ~in & st_z;                   \
   } while (0)
 
-
 // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
 #if defined(__GNUC__) && !defined(__clang__)
 __attribute__((optimize("align-functions=1024")))
@@ -207,17 +206,23 @@ Cpu::runFlat(nes_time_t end)
     SET_STATUS(temp);
   }
 
-  struct [[gnu::packed]] instruction_t {
-  uint8_t opcode;
-  int8_t data = 0;
+  struct [[gnu::packed]] instruction_t
+  {
+    uint8_t opcode;
+    int8_t data = 0;
   } instruction;
-  uint32_t data ;
+  uint32_t data;
 
 loop:
 
-  *((uint16_t*)&instruction) = *((uint16_t*)(&flat_code_map[pc++]));
-  data = *(uint8_t*)&instruction.data;
+  *((uint16_t *)&instruction) = *((uint16_t *)(&flat_code_map[pc++]));
+  data = *(uint8_t *)&instruction.data;
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+  // Per-frame RAM-execution counter (data-as-code walk detector). PC-1 is the fetch address.
+  if ((pc - 1) < 0x0800u && ramExecCount < 0xFFFF) ramExecCount++;
+
+#endif // _QUICKERNES_STUDY_TRACERS
 #ifdef _QUICKERNES_DETECT_BAD_ACCESS
   // bad access = fetched from RAM/regs, or an unofficial opcode -- legit code does neither.
   if (badAccessLatch == 0 && ((pc - 1) < 0x8000u || cpu_isOfficialOpcode[instruction.opcode] == 0)) badAccessLatch = 1;
@@ -1152,7 +1157,7 @@ loop:
   default:
     // case 0x02: case 0x12: case 0x22: case 0x32: case 0x42: case 0x52: case 0x62: case 0x72: case 0x92: case 0xB2: case 0xD2: case 0xF2:
     isCorrectExecution = false;
-    haltLatch          = 1; // sticky: a jammed 6502 stays frozen until RESET (see cpu.hpp)
+    haltLatch = 1; // sticky: a jammed 6502 stays frozen until RESET (see cpu.hpp)
     goto stop;
 
     // Unimplemented

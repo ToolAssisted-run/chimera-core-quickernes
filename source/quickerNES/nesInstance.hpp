@@ -24,6 +24,12 @@ class NESInstance final : public NESInstanceBase
   uint8_t *getBadAccessPtr() override { return _nes.get_bad_access_ptr(); }
 #endif
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+  uint16_t *getRamExecCountPtr() override { return _nes.get_ram_exec_count_ptr(); }
+
+  uint8_t *getTimingHashPtr() override { return _nes.get_timing_hash_ptr(); }
+
+#endif // _QUICKERNES_STUDY_TRACERS
   uint8_t *getWorkMem() const { return _nes.high_mem(); };
   size_t getWorkMemSize() const { return _nes.get_high_mem_size(); };
 

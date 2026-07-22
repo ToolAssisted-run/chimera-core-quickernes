@@ -1,10 +1,10 @@
 #pragma once
 
 #include "inputParser.hpp"
+#include "jaffarCommon/deserializers/base.hpp"
 #include "jaffarCommon/logger.hpp"
 #include "jaffarCommon/serializers/contiguous.hpp"
 #include "jaffarCommon/serializers/differential.hpp"
-#include "jaffarCommon/deserializers/base.hpp"
 
 // Size of image generated in graphics buffer
 static const uint16_t image_width = 256;
@@ -69,6 +69,12 @@ class NESInstanceBase
 
   /// CPU per-frame bad-access flag pointer (unofficial opcode / RAM execution this frame). nullptr if untracked.
   virtual uint8_t *getBadAccessPtr() { return nullptr; }
+
+  /// CPU per-frame count of instructions executed from work RAM (data-as-code walk). nullptr if untracked.
+  virtual uint16_t *getRamExecCountPtr() { return nullptr; }
+
+  /// Packed frame-timing accumulators for hashing NMI-timing state. nullptr if untracked.
+  virtual uint8_t *getTimingHashPtr() { return nullptr; }
 
   virtual void serializeState(jaffarCommon::serializer::Base &serializer) const = 0;
   virtual void deserializeState(jaffarCommon::deserializer::Base &deserializer) = 0;

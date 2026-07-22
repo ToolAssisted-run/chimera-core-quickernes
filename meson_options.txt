@@ -32,3 +32,8 @@ option('enableArkanoidInputs',
   description : 'Build tests',
   yield: true
 )
+option('enableStudyTracers',
+       type : 'boolean',
+       value : false,
+       description : 'Compiles the env-gated CPU study tracers (PIN_TRACE/PIN_CYCLE/PIN_PROTECT_FLIP/MM_TRACE, RAM-exec counter, timing-hash). Costs ~30%% even when env-disabled; for RE sessions only.'
+)

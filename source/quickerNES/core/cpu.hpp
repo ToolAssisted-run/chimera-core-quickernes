@@ -3,9 +3,9 @@
 // NES 6502 CPU emulator
 // Emu 0.7.0
 
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
-#include <limits.h>
 
 namespace quickerNES
 {
@@ -23,29 +23,268 @@ typedef unsigned nes_addr_t; // 16-bit address
 // isOfficialOpcode[b] == 1 for the 151 documented NMOS 6502 opcodes, 0 for the other 105.
 inline constexpr uint8_t cpu_isOfficialOpcode[256] = {
   // built from the documented opcode set; 1 = official, 0 = unofficial
-  /*0x00*/ 1,1,0,0,0,1,1,0, 1,1,1,0,0,1,1,0, // BRK ORA -   -   -   ORA ASL -   PHP ORA ASL -   -   ORA ASL -
-  /*0x10*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BPL ORA -   -   -   ORA ASL -   CLC ORA -   -   -   ORA ASL -
-  /*0x20*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // JSR AND -   -   BIT AND ROL -   PLP AND ROL -   BIT AND ROL -
-  /*0x30*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BMI AND -   -   -   AND ROL -   SEC AND -   -   -   AND ROL -
-  /*0x40*/ 1,1,0,0,0,1,1,0, 1,1,1,0,1,1,1,0, // RTI EOR -   -   -   EOR LSR -   PHA EOR LSR -   JMP EOR LSR -
-  /*0x50*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BVC EOR -   -   -   EOR LSR -   CLI EOR -   -   -   EOR LSR -
-  /*0x60*/ 1,1,0,0,0,1,1,0, 1,1,1,0,1,1,1,0, // RTS ADC -   -   -   ADC ROR -   PLA ADC ROR -   JMP ADC ROR -
-  /*0x70*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BVS ADC -   -   -   ADC ROR -   SEI ADC -   -   -   ADC ROR -
-  /*0x80*/ 0,1,0,0,1,1,1,0, 1,0,1,0,1,1,1,0, // -   STA -   -   STY STA STX -   DEY -   TXA -   STY STA STX -
-  /*0x90*/ 1,1,0,0,1,1,1,0, 1,1,1,0,0,1,0,0, // BCC STA -   -   STY STA STX -   TYA STA TXS -   -   STA -   -
-  /*0xA0*/ 1,1,1,0,1,1,1,0, 1,1,1,0,1,1,1,0, // LDY LDA LDX -   LDY LDA LDX -   TAY LDA TAX -   LDY LDA LDX -
-  /*0xB0*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // BCS LDA -   -   LDY LDA LDX -   CLV LDA TSX -   LDY LDA LDX -
-  /*0xC0*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // CPY CMP -   -   CPY CMP DEC -   INY CMP DEX -   CPY CMP DEC -
-  /*0xD0*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BNE CMP -   -   -   CMP DEC -   CLD CMP -   -   -   CMP DEC -
-  /*0xE0*/ 1,1,0,0,1,1,1,0, 1,1,1,0,1,1,1,0, // CPX SBC -   -   CPX SBC INC -   INX SBC NOP -   CPX SBC INC -
-  /*0xF0*/ 1,1,0,0,0,1,1,0, 1,1,0,0,0,1,1,0, // BEQ SBC -   -   -   SBC INC -   SED SBC -   -   -   SBC INC -
+  /*0x00*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  0, // BRK ORA -   -   -   ORA ASL -   PHP ORA ASL -   -   ORA ASL -
+  /*0x10*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0, // BPL ORA -   -   -   ORA ASL -   CLC ORA -   -   -   ORA ASL -
+  /*0x20*/ 1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // JSR AND -   -   BIT AND ROL -   PLP AND ROL -   BIT AND ROL -
+  /*0x30*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0, // BMI AND -   -   -   AND ROL -   SEC AND -   -   -   AND ROL -
+  /*0x40*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // RTI EOR -   -   -   EOR LSR -   PHA EOR LSR -   JMP EOR LSR -
+  /*0x50*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0, // BVC EOR -   -   -   EOR LSR -   CLI EOR -   -   -   EOR LSR -
+  /*0x60*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // RTS ADC -   -   -   ADC ROR -   PLA ADC ROR -   JMP ADC ROR -
+  /*0x70*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0, // BVS ADC -   -   -   ADC ROR -   SEI ADC -   -   -   ADC ROR -
+  /*0x80*/ 0,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // -   STA -   -   STY STA STX -   DEY -   TXA -   STY STA STX -
+  /*0x90*/ 1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  0,
+  1,
+  0,
+  0, // BCC STA -   -   STY STA STX -   TYA STA TXS -   -   STA -   -
+  /*0xA0*/ 1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // LDY LDA LDX -   LDY LDA LDX -   TAY LDA TAX -   LDY LDA LDX -
+  /*0xB0*/ 1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // BCS LDA -   -   LDY LDA LDX -   CLV LDA TSX -   LDY LDA LDX -
+  /*0xC0*/ 1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // CPY CMP -   -   CPY CMP DEC -   INY CMP DEX -   CPY CMP DEC -
+  /*0xD0*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0, // BNE CMP -   -   -   CMP DEC -   CLD CMP -   -   -   CMP DEC -
+  /*0xE0*/ 1,
+  1,
+  0,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  1,
+  1,
+  0, // CPX SBC -   -   CPX SBC INC -   INX SBC NOP -   CPX SBC INC -
+  /*0xF0*/ 1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0,
+  1,
+  1,
+  0,
+  0,
+  0,
+  1,
+  1,
+  0, // BEQ SBC -   -   -   SBC INC -   SED SBC -   -   -   SBC INC -
 };
 #endif
 
 class Cpu
 {
   public:
-
   void set_tracecb(void (*cb)(unsigned int *data))
   {
     tracecb = cb;
@@ -89,7 +328,7 @@ class Cpu
     // identical bytes. Skip that redundant memcpy (the common case for games that
     // rewrite the same bank register, and for apply_mapping on every state load).
     if (_useFlatCodeMap == true && code_map[i] != newBase)
-      memcpy(&flat_code_map[i*page_size], p, page_size);
+      memcpy(&flat_code_map[i * page_size], p, page_size);
     code_map[i] = newBase;
   }
 
@@ -104,9 +343,9 @@ class Cpu
   {
     for (unsigned int i = 0; i < page_count + 1; i++)
     {
-      const uint8_t* srcPointer = code_map[i];
+      const uint8_t *srcPointer = code_map[i];
       srcPointer += i * page_size;
-      memcpy(&flat_code_map[i*page_size], srcPointer, page_size);
+      memcpy(&flat_code_map[i * page_size], srcPointer, page_size);
     }
   }
 
@@ -147,10 +386,10 @@ class Cpu
   result_t runFlat(nes_time_t end_time);
 #endif
 
-  inline result_t run(nes_time_t end_time) 
+  inline result_t run(nes_time_t end_time)
   {
-   if (_useFlatCodeMap == true) return runFlat(end_time);
-   return runPaged(end_time);
+    if (_useFlatCodeMap == true) return runFlat(end_time);
+    return runPaged(end_time);
   }
 
   nes_time_t time() const { return clock_count; }
@@ -220,6 +459,15 @@ class Cpu
   // the CPUR block (cpu_state_t.unused[0]) so it travels with savestates.
   uint8_t haltLatch = 0;
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+  // Per-frame count of instructions fetched from work RAM (PC < 0x0800). Normal games touch this only
+  // a handful of times per frame (RAM-resident jump-notes); a large value flags a data-as-code "walk"
+  // -- e.g. the NES Pinball score-warp, where a timed NMI leaves the processor executing the scratch
+  // page. Not sticky, not serialized: reset at emulate_frame start and recomputed each advance so it
+  // never leaks across search branches. Always compiled (a cheap counter, unlike the gated latch below).
+  uint16_t ramExecCount = 0;
+
+#endif // _QUICKERNES_STUDY_TRACERS
 #ifdef _QUICKERNES_DETECT_BAD_ACCESS
   // Per-frame bad-access flag (see cpu_isOfficialOpcode). NOT sticky and NOT serialized: reset to 0
   // at the start of every emulate_frame and set the instant a bad fetch is executed, so it reports
@@ -243,23 +491,263 @@ class Cpu
 
   // status flags
   static constexpr uint8_t clock_table[256] = {
-  //  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
-      7,  6,  2,  8,  3,  3,  5,  5,  3,  2,  2,  2,  4,  4,  6,  6, // 0
-      3,  5,  2,  8,  4,  4,  6,  6,  2,  4,  2,  7,  4,  4,  7,  7, // 1
-      6,  6,  2,  8,  3,  3,  5,  5,  4,  2,  2,  2,  4,  4,  6,  6, // 2
-      3,  5,  2,  8,  4,  4,  6,  6,  2,  4,  2,  7,  4,  4,  7,  7, // 3
-      6,  6,  2,  8,  3,  3,  5,  5,  3,  2,  2,  2,  3,  4,  6,  6, // 4
-      3,  5,  2,  8,  4,  4,  6,  6,  2,  4,  2,  7,  4,  4,  7,  7, // 5
-      6,  6,  2,  8,  3,  3,  5,  5,  4,  2,  2,  2,  5,  4,  6,  6, // 6
-      3,  5,  2,  8,  4,  4,  6,  6,  2,  4,  2,  7,  4,  4,  7,  7, // 7
-      2,  6,  2,  6,  3,  3,  3,  3,  2,  2,  2,  2,  4,  4,  4,  4, // 8
-      3,  6,  2,  6,  4,  4,  4,  4,  2,  5,  2,  5,  5,  5,  5,  5, // 9
-      2,  6,  2,  6,  3,  3,  3,  3,  2,  2,  2,  2,  4,  4,  4,  4, // A
-      3,  5,  2,  5,  4,  4,  4,  4,  2,  4,  2,  4,  4,  4,  4,  4, // B
-      2,  6,  2,  8,  3,  3,  5,  5,  2,  2,  2,  2,  4,  4,  6,  6, // C
-      3,  5,  2,  8,  4,  4,  6,  6,  2,  4,  2,  7,  4,  4,  7,  7, // D
-      2,  6,  2,  8,  3,  3,  5,  5,  2,  2,  2,  2,  4,  4,  6,  6, // E
-      3,  5,  2,  8,  4,  4,  6,  6,  2,  4,  2,  7,  4,  4,  7,  7  // F
+    //  0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+    7,
+    6,
+    2,
+    8,
+    3,
+    3,
+    5,
+    5,
+    3,
+    2,
+    2,
+    2,
+    4,
+    4,
+    6,
+    6, // 0
+    3,
+    5,
+    2,
+    8,
+    4,
+    4,
+    6,
+    6,
+    2,
+    4,
+    2,
+    7,
+    4,
+    4,
+    7,
+    7, // 1
+    6,
+    6,
+    2,
+    8,
+    3,
+    3,
+    5,
+    5,
+    4,
+    2,
+    2,
+    2,
+    4,
+    4,
+    6,
+    6, // 2
+    3,
+    5,
+    2,
+    8,
+    4,
+    4,
+    6,
+    6,
+    2,
+    4,
+    2,
+    7,
+    4,
+    4,
+    7,
+    7, // 3
+    6,
+    6,
+    2,
+    8,
+    3,
+    3,
+    5,
+    5,
+    3,
+    2,
+    2,
+    2,
+    3,
+    4,
+    6,
+    6, // 4
+    3,
+    5,
+    2,
+    8,
+    4,
+    4,
+    6,
+    6,
+    2,
+    4,
+    2,
+    7,
+    4,
+    4,
+    7,
+    7, // 5
+    6,
+    6,
+    2,
+    8,
+    3,
+    3,
+    5,
+    5,
+    4,
+    2,
+    2,
+    2,
+    5,
+    4,
+    6,
+    6, // 6
+    3,
+    5,
+    2,
+    8,
+    4,
+    4,
+    6,
+    6,
+    2,
+    4,
+    2,
+    7,
+    4,
+    4,
+    7,
+    7, // 7
+    2,
+    6,
+    2,
+    6,
+    3,
+    3,
+    3,
+    3,
+    2,
+    2,
+    2,
+    2,
+    4,
+    4,
+    4,
+    4, // 8
+    3,
+    6,
+    2,
+    6,
+    4,
+    4,
+    4,
+    4,
+    2,
+    5,
+    2,
+    5,
+    5,
+    5,
+    5,
+    5, // 9
+    2,
+    6,
+    2,
+    6,
+    3,
+    3,
+    3,
+    3,
+    2,
+    2,
+    2,
+    2,
+    4,
+    4,
+    4,
+    4, // A
+    3,
+    5,
+    2,
+    5,
+    4,
+    4,
+    4,
+    4,
+    2,
+    4,
+    2,
+    4,
+    4,
+    4,
+    4,
+    4, // B
+    2,
+    6,
+    2,
+    8,
+    3,
+    3,
+    5,
+    5,
+    2,
+    2,
+    2,
+    2,
+    4,
+    4,
+    6,
+    6, // C
+    3,
+    5,
+    2,
+    8,
+    4,
+    4,
+    6,
+    6,
+    2,
+    4,
+    2,
+    7,
+    4,
+    4,
+    7,
+    7, // D
+    2,
+    6,
+    2,
+    8,
+    3,
+    3,
+    5,
+    5,
+    2,
+    2,
+    2,
+    2,
+    4,
+    4,
+    6,
+    6, // E
+    3,
+    5,
+    2,
+    8,
+    4,
+    4,
+    6,
+    6,
+    2,
+    4,
+    2,
+    7,
+    4,
+    4,
+    7,
+    7 // F
   };
 
   // Clear registers, unmap memory, and map code pages to unmapped_page.
@@ -286,7 +774,7 @@ class Cpu
       set_code_page(i, (uint8_t *)unmapped_page);
 
     isCorrectExecution = true;
-    haltLatch          = 0; // only RESET recovers a jammed CPU
+    haltLatch = 0; // only RESET recovers a jammed CPU
   }
 };
 

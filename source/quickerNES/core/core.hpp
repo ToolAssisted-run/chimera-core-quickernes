@@ -19,13 +19,13 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA */
 #include "cpu.hpp"
 #include "mappers/mapper.hpp"
 #include "ppu/ppu.hpp"
-#include <stdint.h>
-#include <stdio.h>
+#include <algorithm>
 #include <jaffarCommon/deserializers/base.hpp>
 #include <jaffarCommon/serializers/base.hpp>
-#include <algorithm>
 #include <new>
 #include <stdexcept>
+#include <stdint.h>
+#include <stdio.h>
 #include <string>
 
 #ifdef _QUICKERNES_ENABLE_INPUT_CALLBACK
@@ -68,12 +68,12 @@ struct input_state_t
 {
   uint32_t joypad_latches[2]; // input_state 1 & 2 shift registers
 
-  #ifdef _QUICKERNES_SUPPORT_ARKANOID_INPUTS
+#ifdef _QUICKERNES_SUPPORT_ARKANOID_INPUTS
   uint32_t arkanoid_latch; // arkanoid latch
-  uint8_t arkanoid_fire; // arkanoid latch
-  #endif
+  uint8_t arkanoid_fire;   // arkanoid latch
+#endif
 
-  uint8_t w4016;              // strobe
+  uint8_t w4016; // strobe
 };
 
 struct cpu_state_t
@@ -106,6 +106,12 @@ class Core : private Cpu
   uint8_t *getBadAccessPtr() { return &badAccessLatch; }
 #endif
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+  /// Pointer to the per-frame count of instructions executed from work RAM (see Cpu::ramExecCount).
+  /// Always available (not gated by the bad-access flag). A large value flags a data-as-code walk.
+  uint16_t *getRamExecCountPtr() { return &ramExecCount; }
+
+#endif // _QUICKERNES_STUDY_TRACERS
   /// Reads a byte from the CPU-visible code map (honors current PRG banking). For trace/audit tools.
   uint8_t peekCode(uint16_t addr) { return *get_code(addr); }
 
@@ -135,7 +141,7 @@ class Core : private Cpu
     arkanoidNES_t = 2,
     arkanoidFamicom_t = 3,
   };
-  
+
   Core() : ppu(this)
   {
     cart = NULL;
@@ -246,7 +252,6 @@ class Core : private Cpu
     // whole-Ppu block at the very end supersedes it (captures all PPU timing/scheduler/sprite state).
     if (PPURBlockEnabled == true && !preciseTiming)
       serializer.pushContiguous((const uint8_t *)&ppu, sizeof(ppu_state_t));
-
 
     // APUR Block
     if (APURBlockEnabled == true)
@@ -388,7 +393,6 @@ class Core : private Cpu
     if (PPURBlockEnabled == true && !preciseTiming)
       deserializer.popContiguous((uint8_t *)&ppu, sizeof(ppu_state_t));
 
-
     // APUR Block
     if (APURBlockEnabled == true)
     {
@@ -487,28 +491,51 @@ class Core : private Cpu
     // saving instance's addresses). Done LAST so nothing in the deserialize path re-derives it.
     if (PPURBlockEnabled == true && preciseTiming)
     {
-      auto s_nt0 = ppu.nt_banks[0]; auto s_nt1 = ppu.nt_banks[1];
-      auto s_nt2 = ppu.nt_banks[2]; auto s_nt3 = ppu.nt_banks[3];
-      auto s_hostpal = ppu.host_palette; auto s_impl = ppu.impl;
-      auto s_chrdata = ppu.chr_data; auto s_chrram = ppu.chr_ram;
-      auto s_tc = ppu.tile_cache; auto s_ft = ppu.flipped_tiles; auto s_tcm = ppu.tile_cache_mem;
-      auto s_hp = ppu.host_pixels; auto s_sp = ppu.scanline_pixels;
+      auto s_nt0 = ppu.nt_banks[0];
+      auto s_nt1 = ppu.nt_banks[1];
+      auto s_nt2 = ppu.nt_banks[2];
+      auto s_nt3 = ppu.nt_banks[3];
+      auto s_hostpal = ppu.host_palette;
+      auto s_impl = ppu.impl;
+      auto s_chrdata = ppu.chr_data;
+      auto s_chrram = ppu.chr_ram;
+      auto s_tc = ppu.tile_cache;
+      auto s_ft = ppu.flipped_tiles;
+      auto s_tcm = ppu.tile_cache_mem;
+      auto s_hp = ppu.host_pixels;
+      auto s_sp = ppu.scanline_pixels;
 
       // The Ppu also holds a `Core &emu` reference (stored as a hidden pointer to THIS Core). The raw
       // copy clobbers it; find its slot (the one holding a pointer == this) so we can put `this` back.
-      Core *self = this; size_t emuOff = (size_t)-1;
+      Core *self = this;
+      size_t emuOff = (size_t)-1;
       for (size_t o = 0; o + sizeof(Core *) <= sizeof(Ppu); o++)
-      { Core *p; memcpy(&p, (char *)&ppu + o, sizeof p); if (p == self) { emuOff = o; break; } }
+      {
+        Core *p;
+        memcpy(&p, (char *)&ppu + o, sizeof p);
+        if (p == self)
+        {
+          emuOff = o;
+          break;
+        }
+      }
 
       deserializer.popContiguous((uint8_t *)&ppu, sizeof(Ppu));
 
       if (emuOff != (size_t)-1) memcpy((char *)&ppu + emuOff, &self, sizeof self);
-      ppu.nt_banks[0] = s_nt0; ppu.nt_banks[1] = s_nt1;
-      ppu.nt_banks[2] = s_nt2; ppu.nt_banks[3] = s_nt3;
-      ppu.host_palette = s_hostpal; ppu.impl = s_impl;
-      ppu.chr_data = s_chrdata; ppu.chr_ram = s_chrram;
-      ppu.tile_cache = s_tc; ppu.flipped_tiles = s_ft; ppu.tile_cache_mem = s_tcm;
-      ppu.host_pixels = s_hp; ppu.scanline_pixels = s_sp;
+      ppu.nt_banks[0] = s_nt0;
+      ppu.nt_banks[1] = s_nt1;
+      ppu.nt_banks[2] = s_nt2;
+      ppu.nt_banks[3] = s_nt3;
+      ppu.host_palette = s_hostpal;
+      ppu.impl = s_impl;
+      ppu.chr_data = s_chrdata;
+      ppu.chr_ram = s_chrram;
+      ppu.tile_cache = s_tc;
+      ppu.flipped_tiles = s_ft;
+      ppu.tile_cache_mem = s_tcm;
+      ppu.host_pixels = s_hp;
+      ppu.scanline_pixels = s_sp;
       ppu.all_tiles_modified(); // rebuild the (per-instance) tile cache from the restored CHR on next render
     }
   }
@@ -675,10 +702,10 @@ class Core : private Cpu
       input_state.joypad_latches[0] = 0;
       input_state.joypad_latches[1] = 0;
 
-      #ifdef _QUICKERNES_SUPPORT_ARKANOID_INPUTS
+#ifdef _QUICKERNES_SUPPORT_ARKANOID_INPUTS
       input_state.arkanoid_latch = 0;
       input_state.arkanoid_fire = 0;
-      #endif
+#endif
 
       nes.frame_count = 0;
     }
@@ -710,11 +737,14 @@ class Core : private Cpu
     badAccessLatch = 0; // per-frame: report only derails caused by THIS frame's advance
 #endif
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+    ramExecCount = 0; // per-frame: count instructions fetched from work RAM during THIS frame's advance
+
+#endif // _QUICKERNES_STUDY_TRACERS
     current_joypad[0] = joypad1;
     current_joypad[1] = joypad2;
     current_arkanoid_latch = arkanoid_latch;
     current_arkanoid_fire = arkanoid_fire;
-
 
     cpu_time_offset = ppu.begin_frame(nes.timestamp) - 1;
     ppu_2002_time = 0;
@@ -737,8 +767,25 @@ class Core : private Cpu
     disable_rendering();
     nes.frame_count++;
 
+#ifdef _QUICKERNES_STUDY_TRACERS
+    // Pack the persistent frame-timing accumulators (drive cross-frame CPU/PPU NMI alignment) so a
+    // frontend can HASH them -- states with identical RAM but different NMI timing decide different
+    // data-as-code walks and must not dedup-merge. Small-range, so hashing them adds only a few branches.
+    {
+      int bp = ppu.burst_phase;
+      int fle = ppu.frame_length_extra;
+      memcpy(&timingHashBuf[0], &bp, 4);
+      memcpy(&timingHashBuf[4], &fle, 4);
+    }
+
+#endif // _QUICKERNES_STUDY_TRACERS
     return ppu_frame_length;
   }
+#ifdef _QUICKERNES_STUDY_TRACERS
+  uint8_t timingHashBuf[8] = {0};
+  /// Pointer to the packed frame-timing accumulators (burst_phase, frame_length_extra) for hashing.
+  uint8_t *getTimingHashPtr() { return timingHashBuf; }
+#endif // _QUICKERNES_STUDY_TRACERS
 
   void close()
   {
@@ -834,9 +881,8 @@ class Core : private Cpu
     return t;
   }
 
-
   controllerType_t _controllerType = controllerType_t::none_t;
-  
+
   input_state_t input_state;
 
   void setControllerType(controllerType_t type) { _controllerType = type; }
@@ -846,69 +892,68 @@ class Core : private Cpu
   {
     if ((addr & 0xFFFE) == 0x4016)
     {
-      // For performance's sake, this counter is only kept on demand
-      #ifdef _QUICKERNES_DETECT_JOYPAD_READS
-            joypad_read_count++;
-      #endif
+  // For performance's sake, this counter is only kept on demand
+  #ifdef _QUICKERNES_DETECT_JOYPAD_READS
+      joypad_read_count++;
+  #endif
 
       // If write flag is put into w4016, reading from it returns nothing
       if (input_state.w4016 & 1) return 0;
 
       // Proceed depending on input type
-      switch(_controllerType)
+      switch (_controllerType)
       {
-        case controllerType_t::joypad_t:
+      case controllerType_t::joypad_t:
+      {
+        const uint8_t result = input_state.joypad_latches[addr & 1] & 1;
+        input_state.joypad_latches[addr & 1] >>= 1;
+        return result;
+      }
+
+      case controllerType_t::arkanoidNES_t:
+      {
+        if (addr == 0x4017)
         {
-            const uint8_t result = input_state.joypad_latches[addr & 1] & 1;
-            input_state.joypad_latches[addr & 1] >>= 1;
-            return result;
+          // latch 0 encodes fire, latch 1 encodes potentiometer
+          const uint8_t result = (input_state.arkanoid_latch & 1) * 16 + input_state.arkanoid_fire * 8;
+
+          // Advancing latch 1
+          input_state.arkanoid_latch >>= 1;
+          return result;
+        }
+      }
+
+      case controllerType_t::arkanoidFamicom_t:
+      {
+        if (addr == 0x4016)
+        {
+          // latch 0 encodes fire
+          uint8_t result = (input_state.arkanoid_fire & 1) * 2;
+
+          // latch 0 also encodes input_state 1
+          result += (input_state.joypad_latches[0] & 1) & 1;
+
+          // Advancing input_state latch
+          input_state.joypad_latches[0] >>= 1;
+
+          return result;
         }
 
-        case controllerType_t::arkanoidNES_t:
+        if (addr == 0x4017)
         {
-            if (addr == 0x4017) 
-            {
-              // latch 0 encodes fire, latch 1 encodes potentiometer
-              const uint8_t result = (input_state.arkanoid_latch & 1) * 16 + input_state.arkanoid_fire * 8;
+          // latch 1 encodes potentiometer
+          const uint8_t result = (input_state.arkanoid_latch & 1) * 2;
 
-              // Advancing latch 1
-              input_state.arkanoid_latch >>= 1;
-              return result;
-            }
+          // Advancing latch 1
+          input_state.arkanoid_latch >>= 1;
+          return result;
         }
+      }
 
-        case controllerType_t::arkanoidFamicom_t:
-        {
-            if (addr == 0x4016) 
-            {
-              // latch 0 encodes fire
-              uint8_t result = (input_state.arkanoid_fire & 1) * 2;
-
-              // latch 0 also encodes input_state 1
-              result += (input_state.joypad_latches[0] & 1) & 1;
-
-              // Advancing input_state latch
-              input_state.joypad_latches[0] >>= 1;
-
-              return result;
-            }
-
-            if (addr == 0x4017) 
-            {
-              // latch 1 encodes potentiometer
-              const uint8_t result = (input_state.arkanoid_latch & 1) * 2;
-
-              // Advancing latch 1
-              input_state.arkanoid_latch >>= 1;
-              return result;
-            }
-        }
-
-        default:
-          return 0;
-      } 
+      default:
+        return 0;
+      }
     }
-
 
     if (addr == Apu::status_addr)
       return impl->apu.read_status(clock());
@@ -920,10 +965,10 @@ class Core : private Cpu
   {
     if ((addr & 0xFFFE) == 0x4016)
     {
-      // For performance's sake, this counter is only kept on demand
-      #ifdef _QUICKERNES_DETECT_JOYPAD_READS
-            joypad_read_count++;
-      #endif
+  // For performance's sake, this counter is only kept on demand
+  #ifdef _QUICKERNES_DETECT_JOYPAD_READS
+      joypad_read_count++;
+  #endif
 
       // to do: to aid with recording, doesn't emulate transparent latch,
       // so a game that held strobe at 1 and read $4016 or $4017 would not get
@@ -960,14 +1005,14 @@ class Core : private Cpu
         input_state.joypad_latches[0] = current_joypad[0];
         input_state.joypad_latches[1] = current_joypad[1];
 
-        #ifdef _QUICKERNES_SUPPORT_ARKANOID_INPUTS
+#ifdef _QUICKERNES_SUPPORT_ARKANOID_INPUTS
         input_state.arkanoid_latch = current_arkanoid_latch;
         input_state.arkanoid_fire = current_arkanoid_fire;
-        #endif
+#endif
 
-		#ifdef _QUICKERNES_ENABLE_INPUT_CALLBACK
+#ifdef _QUICKERNES_ENABLE_INPUT_CALLBACK
         input_callback_cb();
-		#endif
+#endif
       }
       input_state.w4016 = data;
       return;
