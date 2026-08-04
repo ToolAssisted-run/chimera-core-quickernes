@@ -45,6 +45,13 @@ class Emu
   const uint8_t *getHostPixels() const { return emu.ppu.host_pixels; }
 
   int get_joypad_read_count() const { return emu.joypad_read_count; }
+
+#ifdef _QUICKERNES_DETECT_JOYPAD_READS
+  /// Per-frame count of $4016/$4017 joypad reads; 0 after a frame means it was a lag frame (no input
+  /// polled). Reset at the start of every emulated frame; NOT part of the serialized state, so it is
+  /// only meaningful right after a live advance.
+  int *get_joypad_read_count_ptr() { return &emu.joypad_read_count; }
+#endif
   void set_tracecb(void (*cb)(unsigned int *dest)) { emu.set_tracecb(cb); }
 
   // Save emulator state variants

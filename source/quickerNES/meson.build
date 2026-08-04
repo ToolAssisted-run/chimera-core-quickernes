@@ -30,7 +30,11 @@ quickerNESSrc = quickerNESAPUSrc + quickerNESPPUSrc + [
 ]
 
 quickerNESCompileArgs = [
-    '-fno-strict-aliasing'
+    '-fno-strict-aliasing',
+    # Per-frame joypad-read counter (lag-frame detection: a frame with zero $4016/$4017 reads polled
+    # no input). Unlike the study tracers this costs only a couple of increments per frame, so it is
+    # always on.
+    '-D_QUICKERNES_DETECT_JOYPAD_READS'
  ]
 
 # Checking for arkanoid input support

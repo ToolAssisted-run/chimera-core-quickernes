@@ -76,6 +76,10 @@ class NESInstanceBase
   /// Packed frame-timing accumulators for hashing NMI-timing state. nullptr if untracked.
   virtual uint8_t *getTimingHashPtr() { return nullptr; }
 
+  /// Per-frame joypad ($4016/$4017) read count; 0 after an advance = lag frame (no input polled).
+  /// Live-advance only (not serialized). nullptr if untracked.
+  virtual int *getJoypadReadCountPtr() { return nullptr; }
+
   virtual void serializeState(jaffarCommon::serializer::Base &serializer) const = 0;
   virtual void deserializeState(jaffarCommon::deserializer::Base &deserializer) = 0;
 

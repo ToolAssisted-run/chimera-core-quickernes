@@ -24,6 +24,10 @@ class NESInstance final : public NESInstanceBase
   uint8_t *getBadAccessPtr() override { return _nes.get_bad_access_ptr(); }
 #endif
 
+#ifdef _QUICKERNES_DETECT_JOYPAD_READS
+  int *getJoypadReadCountPtr() override { return _nes.get_joypad_read_count_ptr(); }
+#endif
+
 #ifdef _QUICKERNES_STUDY_TRACERS
   uint16_t *getRamExecCountPtr() override { return _nes.get_ram_exec_count_ptr(); }
 
