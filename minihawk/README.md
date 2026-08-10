@@ -27,7 +27,7 @@ Contents:
 ## Building
 
 ```powershell
-# prereq: a miniHawk checkout, solution built (dotnet build BizHawk.sln -c Release)
+# prereq: a miniHawk checkout, solution built (dotnet build source/BizHawk.sln -c Release)
 ./build-package.ps1                       # assumes ../BizHawk sibling checkout
 ./build-package.ps1 -MiniHawkRoot <path>  # or point at it explicitly
 ```
