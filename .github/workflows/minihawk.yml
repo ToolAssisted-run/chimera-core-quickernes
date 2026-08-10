@@ -1,0 +1,33 @@
+name: Build miniHawk native core
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths: [ "minihawk/**", "source/**" ]
+  push:
+    branches: [ "main" ]
+    paths: [ "minihawk/**", "source/**" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build-minihawk-native:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+    - name: Building libquicknes (Linux)
+      working-directory: ./minihawk/native
+      run: make -j4; make install
+    - name: Upload native core
+      uses: actions/upload-artifact@v7
+      with:
+        name: libquicknes
+        path: |
+          minihawk/natives/libquicknes.so
+        retention-days: 90

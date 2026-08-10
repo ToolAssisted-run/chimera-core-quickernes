@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<!--
+		The QuickerNES core package for miniHawk (https://github.com/SergioMartin86/miniHawk).
+		Builds against the published miniHawk core contract: the BizHawk.Emulation.Common /
+		BizHawk.Common / BizHawk.BizInvoke assemblies plus the BizHawk.SrcGen.SettingsUtil
+		analyzer, all taken from <MiniHawkRoot>/build/dll (build the miniHawk solution first).
+		MiniHawkRoot defaults to a sibling checkout named BizHawk; override with
+		-p:MiniHawkRoot=<path> or via build-package.ps1 -MiniHawkRoot.
+	-->
+	<PropertyGroup>
+		<MiniHawkRoot Condition=" '$(MiniHawkRoot)' == '' ">$(MSBuildProjectDirectory)/../../BizHawk</MiniHawkRoot>
+		<TargetFramework>net48</TargetFramework>
+		<AssemblyName>MiniHawk.QuickerNES</AssemblyName>
+		<RootNamespace>BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES</RootNamespace>
+		<LangVersion>preview</LangVersion>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<Nullable>disable</Nullable>
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+	</PropertyGroup>
+	<ItemGroup>
+		<Using Include="System" />
+		<PackageReference Include="Newtonsoft.Json" VersionOverride="13.0.3" />
+		<PackageReference Include="System.Memory" VersionOverride="4.6.3" />
+		<Compile Include="source/**/*.cs" />
+		<Reference Include="BizHawk.Common" HintPath="$(MiniHawkRoot)/build/dll/BizHawk.Common.dll" Private="false" />
+		<Reference Include="BizHawk.BizInvoke" HintPath="$(MiniHawkRoot)/build/dll/BizHawk.BizInvoke.dll" Private="false" />
+		<Reference Include="BizHawk.Emulation.Common" HintPath="$(MiniHawkRoot)/build/dll/BizHawk.Emulation.Common.dll" Private="false" />
+		<Analyzer Include="$(MiniHawkRoot)/build/dll/BizHawk.SrcGen.SettingsUtil.dll" />
+	</ItemGroup>
+</Project>

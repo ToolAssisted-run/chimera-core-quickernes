@@ -1,4 +1,4 @@
-quickerNES
+﻿quickerNES
 -----------
 
 [![Build & Tests](https://github.com/SergioMartin86/quickerNES/actions/workflows/make.yml/badge.svg)](https://github.com/SergioMartin86/quickerNES/actions/workflows/make.yml)
@@ -34,6 +34,7 @@ Credits
 - For the interactive player, this project drew some code from [HeadlessQuickNES (HQN)](https://github.com/Bindernews/HeadlessQuickNes) by Drew (Binder News)
 - We use some of the [NES test rom set](https://github.com/christopherpow/nes-test-roms) made by multiple authors and gathered by Christopher Pow et al.
 - We also use some movies from the [TASVideos](tasvideos.org) website for testing. These movies are copied into this repository with authorization under the Creative Commons Attribution 2.0 license.
+- The `minihawk/` directory (this emulator's core package for the [miniHawk](https://github.com/SergioMartin86/miniHawk) frontend) is derived from BizHawk, original work by the BizHawk team under the MIT license â€” see [minihawk/LICENSE](minihawk/LICENSE) for the full notice and per-file provenance (including BootGod's NES Cart Database and NES palettes by various emulator authors).
 
 All base code for this project was found under open source licenses, which I preserved in their corresponding files/folders. Any non-credited work is unintentional and shall be immediately rectfied.
 

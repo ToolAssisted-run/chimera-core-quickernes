@@ -35,3 +35,7 @@ run-clang-format
 *.exe
 *.out
 *.app
+
+# miniHawk adapter build outputs
+minihawk/bin/
+minihawk/obj/
