@@ -19,6 +19,8 @@ Contents:
   for the format)
 - `NesCarts.xml`, `palettes/`, `defctrl.json` â€” data bundled into the package
   (cart DB, NES palettes, default input bindings)
+- `lua/` â€” NES-specific Lua: game helper scripts, the `nes.*` API stub, and
+  the recovered frontend-side API implementation (see `lua/README.md`)
 - `build-package.ps1` â€” builds the adapter against the miniHawk contract DLLs
   and installs `quickernes.zip` into miniHawk's `build/Cores/`
 

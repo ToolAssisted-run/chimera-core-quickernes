@@ -22,6 +22,7 @@ Copy-Item (Join-Path $here "minihawk-core.json") $staging
 Copy-Item (Join-Path $here "bin\$Configuration\MiniHawk.QuickerNES.dll") $staging
 Copy-Item (Join-Path $here "NesCarts.xml") $staging
 Copy-Item (Join-Path $here "defctrl.json") $staging
+Copy-Item (Join-Path $here "lua") (Join-Path $staging "lua") -Recurse
 Copy-Item (Join-Path $here "natives\libquicknes.dll") $staging
 if (Test-Path (Join-Path $here "natives\libquicknes.so")) { Copy-Item (Join-Path $here "natives\libquicknes.so") $staging }
 
