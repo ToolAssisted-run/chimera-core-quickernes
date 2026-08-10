@@ -34,6 +34,9 @@ The contract surface consumed here: `BizHawk.Emulation.Common.dll`,
 `BizHawk.Common.dll`, `BizHawk.BizInvoke.dll`, and the
 `BizHawk.SrcGen.SettingsUtil.dll` analyzer, all from `<MiniHawkRoot>/build/dll`.
 
+miniHawk loads the package explicitly: `File > Open Core...` in the UI, or
+`EmuHawk.exe --core=<path to quickernes.zip>` on the command line.
+
 ## Licensing and authorship
 
 See [LICENSE](LICENSE) in this directory. In short:
@@ -52,7 +55,7 @@ See [LICENSE](LICENSE) in this directory. In short:
 ## Determinism obligations
 
 The package must be frame-exact deterministic and savestate round-trip clean.
-miniHawk's witness harness (`minihawk-tests/` in that repo) replays a vendored
+miniHawk's witness harness (`tests/` in that repo) replays a vendored
 snapshot of this repository's `tests/` suite through the full frontend stack
 and byte-compares final RAM against goldens, in both straight-replay and
 per-frame-savestate modes. Run it after any change here.
