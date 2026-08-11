@@ -56,7 +56,7 @@ namespace BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES
 				_syncSettingsNext = _syncSettings.Clone();
 
 				SetControllerDefinition();
-				ComputeBootGod();
+				CheckUnsupportedRom();
 			}
 			catch
 			{
@@ -365,10 +365,12 @@ namespace BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES
 			LagCount = 0;
 		}
 
-		public RomStatus? BootGodStatus { get; private set; }
-		public string BootGodName { get; private set; }
-
-		private void ComputeBootGod()
+		/// <summary>
+		/// Load-time guards keyed on the SHA1 of PRG+CHR: known-unplayable dumps, and
+		/// PAL/Dendy releases (this core is NTSC-only). The PAL set is compiled in
+		/// (<see cref="PalHashList"/>) - the core reads nothing from the filesystem.
+		/// </summary>
+		private void CheckUnsupportedRom()
 		{
 			// inefficient, sloppy, etc etc
 			var chrrom = _memoryDomains["CHR VROM"];
@@ -382,7 +384,6 @@ namespace BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES
 					ms.WriteByte(chrrom.PeekByte(i));
 
 			var sha1 = SHA1Checksum.ComputeDigestHex(ms.ToArray());
-			Console.WriteLine("Hash for BootGod: {0}", sha1);
 
 			// Bail out on ROM's known to not be playable by this core
 			if (HashBlackList.Contains(sha1))
@@ -390,30 +391,10 @@ namespace BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES
 				throw new UnsupportedGameException("Game known to not be playable in this core");
 			}
 
-			sha1 = $"{SHA1Checksum.PREFIX}:{sha1}";
-			var carts = BootGodDb.Identify(sha1);
-
-			if (carts.Count > 0)
+			if (PalHashList.Hashes.Contains(sha1))
 			{
-				Console.WriteLine("BootGod entry found: {0}", carts[0].Name);
-				switch (carts[0].System)
-				{
-					case "NES-PAL":
-					case "NES-PAL-A":
-					case "NES-PAL-B":
-					case "Dendy":
-						Console.WriteLine("Bad region {0}! Failing over...", carts[0].System);
-						throw new UnsupportedGameException("Unsupported region!");
-				}
-
-				BootGodStatus = RomStatus.GoodDump;
-				BootGodName = carts[0].Name;
-			}
-			else
-			{
-				Console.WriteLine("No BootGod entry found.");
-				BootGodStatus = null;
-				BootGodName = null;
+				Console.WriteLine("PAL/Dendy dump detected! Failing over...");
+				throw new UnsupportedGameException("Unsupported region!");
 			}
 		}
 

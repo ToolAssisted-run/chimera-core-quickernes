@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.IO;
+
 using System.Linq;
 
 using BizHawk.Emulation.Common;
@@ -10,13 +10,6 @@ namespace BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES
 	/// <summary>miniHawk core factory for QuickNES (quickerNES).</summary>
 	public sealed class QuickNesFactory : ICoreFactory
 	{
-		static QuickNesFactory()
-		{
-			// the BootGod NES cart DB (NesCarts.xml) ships inside this package;
-			// the adapter assembly's location is the extracted package directory
-			BootGodDb.Initialize(Path.GetDirectoryName(typeof(QuickNesFactory).Assembly.Location));
-		}
-
 		public string CoreName => "QuickNes";
 
 		public IReadOnlyList<string> SystemIds { get; } = [ VSystemID.Raw.NES ];

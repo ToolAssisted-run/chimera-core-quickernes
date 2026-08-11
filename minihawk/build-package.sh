@@ -28,7 +28,6 @@ mkdir -p "$staging"
 
 cp "$here/minihawk-core.json" "$staging"
 cp "$here/bin/$configuration/MiniHawk.QuickerNES.dll" "$staging"
-cp "$here/NesCarts.xml" "$staging"
 cp "$here/defctrl.json" "$staging"
 cp -r "$here/lua" "$staging/lua"
 found_native=0
