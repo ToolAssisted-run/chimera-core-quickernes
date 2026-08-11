@@ -1,0 +1,16 @@
+{
+  "Rom File": "roms/Gimmick! (J).nes",
+  "Expected ROM SHA1": "835FEE060B15700163A1F8AD9716A163BF79C8FD",
+  "Initial State File": "",
+  "Sequence File": "gimmick.anyPercent.sol",
+  "Disable State Blocks": [ ],
+  "Controller 1 Type": "Joypad",
+  "Controller 2 Type": "None",
+  "Verification State File": "",
+  "Differential Compression":
+  {
+    "Enabled": false,
+    "Max Differences": 2200,
+    "Use Zlib": true
+  }
+}
