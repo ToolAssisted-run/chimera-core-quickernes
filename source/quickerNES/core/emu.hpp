@@ -229,6 +229,7 @@ class Emu
   };
 
   uint8_t *get_low_mem() const { return (uint8_t *)emu.low_mem; }
+  size_t getPhaseState(uint8_t *out) const { return emu.getPhaseState(out); }
   size_t get_low_mem_size() const { return low_mem_size; }
 
   /// CPU sticky halt latch (KIL/JAM executed; only reset clears it). See Cpu::haltLatch.

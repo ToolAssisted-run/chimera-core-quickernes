@@ -17,6 +17,7 @@ class NESInstance final : public NESInstanceBase
 
   uint8_t *getLowMem() override { return _nes.get_low_mem(); };
   size_t getLowMemSize() const override { return _nes.get_low_mem_size(); };
+  size_t getPhaseState(uint8_t *out) const override { return _nes.getPhaseState(out); };
 
   uint8_t *getHaltLatchPtr() override { return _nes.get_halt_latch_ptr(); };
 

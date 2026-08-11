@@ -206,6 +206,44 @@ class Core : private Cpu
     return nullptr;
   }
 
+  // Curated machine-phase snapshot for dedup digests: bounded, periodic APU/PPU timing state
+  // (frame-sequencer countdown, channel timer delays, NTSC burst phase, frame-length carry).
+  // Deliberately EXCLUDES absolute counters (frame/cycle counts are depth stamps) and any
+  // instance-volatile serialization residue -- the snapshot is rebuilt from live members.
+  inline size_t getPhaseState(uint8_t *out) const
+  {
+    size_t o = 0;
+    auto put = [&](const void *p, size_t n) { memcpy(out + o, p, n); o += n; };
+    Apu::apu_state_t as;
+    impl->apu.save_state(&as);
+    put(&as.apu.frame_delay, sizeof(as.apu.frame_delay));
+    put(&as.apu.frame_step, sizeof(as.apu.frame_step));
+    put(&as.apu.irq_flag, sizeof(as.apu.irq_flag));
+    put(&as.square1.delay, sizeof(as.square1.delay));
+    put(&as.square1.phase, sizeof(as.square1.phase));
+    put(&as.square2.delay, sizeof(as.square2.delay));
+    put(&as.square2.phase, sizeof(as.square2.phase));
+    put(&as.triangle.delay, sizeof(as.triangle.delay));
+    put(&as.triangle.phase, sizeof(as.triangle.phase));
+    put(&as.triangle.linear_counter, sizeof(as.triangle.linear_counter));
+    put(&as.noise.delay, sizeof(as.noise.delay));
+    put(&as.noise.shift_reg, sizeof(as.noise.shift_reg));
+    put(&as.dmc.delay, sizeof(as.dmc.delay));
+    put(&as.dmc.bits_remain, sizeof(as.dmc.bits_remain));
+    // NOTE: ppu.burst_phase / frame_length_extra are deliberately NOT included: deserializeState
+    // zeroes burst_phase on every load, so load+advance can never reproduce a straight replay's
+    // value -- including them makes the digest instance-path-dependent (pin/dedup poison).
+    // CPU capture context: the between-frame execution point -- proven divergence carrier for
+    // full-RAM-identical twins (no fixed frame loop). Both values are load-faithful (serialized
+    // in the CPU2 block under precise timing) and bounded (pc: code address; clock_count:
+    // cycles within the current frame) -- phase identity, not depth stamps.
+    const uint16_t pc = r.pc;
+    const int32_t  cc = (int32_t)clock_count;
+    put(&pc, sizeof(pc));
+    put(&cc, sizeof(cc));
+    return o;
+  }
+
   inline void serializeState(jaffarCommon::serializer::Base &serializer) const
   {
     // TIME Block

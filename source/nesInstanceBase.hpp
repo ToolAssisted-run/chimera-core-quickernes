@@ -64,6 +64,10 @@ class NESInstanceBase
   virtual uint8_t *getLowMem() = 0;
   virtual size_t getLowMemSize() const = 0;
 
+  /// Curated machine-phase snapshot (bounded APU/PPU timing state) for dedup digests.
+  /// Default: empty (cores without support contribute nothing to a phase digest).
+  virtual size_t getPhaseState(uint8_t *out) const { (void)out; return 0; }
+
   /// CPU sticky halt latch pointer (KIL/JAM executed). Cores that do not track it return nullptr.
   virtual uint8_t *getHaltLatchPtr() { return nullptr; }
 
