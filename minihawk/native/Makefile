@@ -8,8 +8,8 @@ RM = rm
 CP = cp
 
 CXXFLAGS = -I$(CORE_ROOT)/source/quickerNES/core/ -I$(CORE_ROOT)/extern/jaffarCommon/include -Wall -Wfatal-errors -Werror \
-	-std=c++20 -O3 -fomit-frame-pointer -flto -fvisibility=internal -fvisibility-inlines-hidden \
-	-D_GNU_SOURCE -D__INLINE__=inline -D_QUICKERNES_DETECT_JOYPAD_READS -D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT -D_QUICKERNES_SUPPORT_ARKANOID_INPUTS -D_QUICKERNES_PRINT_CART_INFO
+	-std=c++20 -O3 -fomit-frame-pointer -flto -fno-strict-aliasing -fvisibility=internal -fvisibility-inlines-hidden \
+	-D_GNU_SOURCE '-D__JAFFAR_COMMON_INLINE__=__attribute__((__used__)) inline' -D_QUICKERNES_DETECT_JOYPAD_READS -D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT -D_QUICKERNES_SUPPORT_ARKANOID_INPUTS -D_QUICKERNES_PRINT_CART_INFO
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
@@ -18,7 +18,13 @@ else
 	TARGET = libquicknes.dll
 endif
 
+# -soname makes a later dlopen("libquicknes.so") resolve to the module the
+# frontend preloaded from the package dir by absolute path (the Linux analogue
+# of LoadLibrary's by-basename dedupe, which the package loader relies on)
 LDFLAGS = -shared -s $(CXXFLAGS)
+ifeq ($(UNAME), Linux)
+	LDFLAGS += -Wl,-soname,libquicknes.so
+endif
 
 DEST = ../natives
 
@@ -38,7 +44,8 @@ SRCS = \
 	$(CORE_ROOT)/source/quickerNES/core/apu/multiBuffer.cpp \
 	$(CORE_ROOT)/source/quickerNES/core/emu.cpp \
 	$(CORE_ROOT)/source/quickerNES/core/mappers/mapper.cpp \
-	$(CORE_ROOT)/source/quickerNES/core/cpu.cpp \
+	$(CORE_ROOT)/source/quickerNES/core/cpuPaged.cpp \
+	$(CORE_ROOT)/source/quickerNES/core/cpuFlat.cpp \
 	$(CORE_ROOT)/source/quickerNES/core/ppu/ppu.cpp \
 	$(CORE_ROOT)/source/quickerNES/core/ppu/ppuRendering.cpp \
 	$(CORE_ROOT)/source/quickerNES/core/ppu/ppuImpl.cpp \
