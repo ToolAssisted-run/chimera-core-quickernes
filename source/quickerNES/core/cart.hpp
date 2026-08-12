@@ -69,6 +69,8 @@ class Cart
     if (memcmp(h.signature, "NES\x1A", 4) != 0)
       return "Not an iNES file";
 
+    prg_ram_size_ = 0x2000; // iNES default; a NES 2.0 header may raise it below
+
     // Only plain NES is supported
     if (h.flags2 & 0x03)
       return "Unsupported console type";
@@ -116,13 +118,16 @@ class Cart
           return "Unsupported mapper";
       }
 
-       // iNES normally dictates PRG RAM is hardcoded to be 8K
-       // NES 2.0 allows for specifying the size, but >8K is unsupported here
-       long prg_ram_size = 0;
-       if (h.prg_ram & 0x0F) prg_ram_size += 64L << (h.prg_ram & 0x0F);
-       if (h.prg_ram & 0xF0) prg_ram_size += 64L << (h.prg_ram >> 4);
-       if (prg_ram_size > 0x2000)
+       // iNES normally dictates PRG RAM is hardcoded to be 8K. NES 2.0 states the
+       // size, and boards with more of it bank an 8K window into $6000 (MMC1's
+       // SOROM/SXROM). Up to 32K is emulated; beyond that, the banking scheme is
+       // board-specific and unsupported.
+       long declared_prg_ram = 0;
+       if (h.prg_ram & 0x0F) declared_prg_ram += 64L << (h.prg_ram & 0x0F);
+       if (h.prg_ram & 0xF0) declared_prg_ram += 64L << (h.prg_ram >> 4);
+       if (declared_prg_ram > 0x8000)
          return "Unsupported mapper";
+       if (declared_prg_ram > 0x2000) prg_ram_size_ = declared_prg_ram;
 
        // Ensure the iNES battery flag is set if NES 2.0 indicates there should be a battery
        if (h.prg_ram & 0xF0)
@@ -219,6 +224,11 @@ class Cart
   // Size of CHR data
   long chr_size() const { return chr_size_; }
 
+  // Size of the cartridge's PRG RAM ("work"/save RAM at $6000). 8K unless a NES
+  // 2.0 header declares a banked board, in which case the CPU still sees an 8K
+  // window and the mapper chooses which bank it lands on.
+  long prg_ram_size() const { return prg_ram_size_; }
+
   unsigned mapper_data() const { return mapper; }
 
   // Initial mirroring setup
@@ -240,6 +250,7 @@ class Cart
   uint8_t *chr_ = nullptr;
   long prg_size_ = 0;
   long chr_size_ = 0;
+  long prg_ram_size_ = 0x2000;
   unsigned mapper = 0;
 };
 

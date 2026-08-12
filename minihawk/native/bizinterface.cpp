@@ -225,7 +225,7 @@ QN_EXPORT int qn_get_memory_area(quickerNES::Emu *e, int which, const void **dat
 		return 1;
 	case 1:
 		*data = e->high_mem();
-		*size = e->high_mem_size;
+		*size = (int)e->get_high_mem_size();
 		*writable = 1;
 		*name = "WRAM";
 		return 1;

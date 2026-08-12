@@ -94,7 +94,7 @@ class Core : private Cpu
 
   public:
   size_t _NTABBlockSize = 0x1000;
-  size_t _SRAMBlockSize = impl->sram_size;
+  size_t _SRAMBlockSize = impl_t::sram_window;
 
   /// Pointer to the CPU's sticky halt latch (set on KIL/JAM execution, cleared only by reset). Exposed
   /// so frontends can register it as an inspectable property and fail states that jammed the CPU.
@@ -195,6 +195,11 @@ class Core : private Cpu
     // Assigning backwards pointers to cartdrige and emulator now
     mapper->cart_ = new_cart;
     mapper->emu_ = this;
+
+    // A banked-PRG-RAM board carries more save RAM than the 8K window; the state
+    // block must cover all of it. Plain carts keep the 8K block they always had.
+    _SRAMBlockSize = (size_t)new_cart->prg_ram_size();
+    sram_bank_offset = 0;
 
     error = ppu.open_chr(new_cart->chr(), new_cart->chr_size());
     if (error) return error;
@@ -816,7 +821,11 @@ class Core : private Cpu
   {
     enum
     {
-      sram_size = 0x2000
+      // The CPU always sees an 8K window at $6000; boards with more PRG RAM
+      // (MMC1 SOROM/SXROM) bank one of these into it. Carts that declare 8K use
+      // only the first window and behave exactly as before.
+      sram_window = 0x2000,
+      sram_size = 0x8000
     };
     uint8_t sram[sram_size];
     Apu apu;
@@ -828,6 +837,7 @@ class Core : private Cpu
   impl_t *impl; // keep large arrays separate
   unsigned long error_count;
   bool sram_present;
+  long sram_bank_offset = 0; // byte offset of the 8K window inside impl->sram
 
   public:
   uint32_t current_joypad[2];
@@ -1196,14 +1206,25 @@ class Core : private Cpu
       sram_readable = sram_end;
       if (!read_only)
         sram_writable = sram_end;
-      cpu::map_code(0x6000, impl->sram_size, impl->sram);
+      cpu::map_code(0x6000, impl_t::sram_window, impl->sram + sram_bank_offset);
     }
     else
     {
       sram_readable = 0;
-      for (int i = 0; i < impl->sram_size; i += cpu::page_size)
+      for (int i = 0; i < impl_t::sram_window; i += cpu::page_size)
         cpu::map_code(0x6000 + i, cpu::page_size, impl->unmapped_page);
     }
+  }
+
+  // Selects which 8K bank of PRG RAM the $6000 window shows. Only banked boards
+  // ever call this; everything else stays on bank 0, byte-identical to before.
+  void set_sram_bank(int bank)
+  {
+    const long offset = (long)bank * impl_t::sram_window;
+    if (offset < 0 || offset + impl_t::sram_window > (long)impl_t::sram_size) return;
+    if (offset == sram_bank_offset) return;
+    sram_bank_offset = offset;
+    if (sram_readable) cpu::map_code(0x6000, impl_t::sram_window, impl->sram + sram_bank_offset);
   }
 
   nes_time_t clock() const { return clock_; }
@@ -1266,7 +1287,7 @@ inline int Core::cpu_read(nes_addr_t addr, nes_time_t time)
     return read_io(addr);
 
   if (addr < sram_readable)
-    return impl->sram[addr & (impl_t::sram_size - 1)];
+    return impl->sram[sram_bank_offset + (addr & (impl_t::sram_window - 1))];
 
   if (addr < lrom_readable)
     return *cpu::get_code(addr);
@@ -1337,7 +1358,7 @@ inline void Core::cpu_write(nes_addr_t addr, int data, nes_time_t time)
 
   if (addr < sram_writable)
   {
-    impl->sram[addr & (impl_t::sram_size - 1)] = data;
+    impl->sram[sram_bank_offset + (addr & (impl_t::sram_window - 1))] = data;
     return;
   }
 
