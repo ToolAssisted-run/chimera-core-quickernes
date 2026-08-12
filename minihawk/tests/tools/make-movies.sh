@@ -73,10 +73,17 @@ for test_file in "$suite"/*.test; do
 		[ "$in_free" -eq 1 ] || continue
 	fi
 
-	rom_file="$(python3 -c "
-import json, io, sys
+	# Read BOTH the rom and the sequence file from the .test. The sol is NOT
+	# always <name>.sol: saintSeiyaOugonDensetsu replays KanketsuHen's sequence
+	# against a different rom. Deriving the name instead of reading the field
+	# built that movie from the wrong inputs, and the only symptom was a RAM
+	# mismatch 76,723 frames later.
+	# one per line, not space-separated: rom names contain spaces
+	{ read -r rom_file; read -r seq_file; } <<< "$(python3 -c "
+import json, io
 t = json.load(io.open('$test_file', encoding='utf-8-sig'))
 print(t.get('Rom File', ''))
+print(t.get('Sequence File', ''))
 ")"
 	rom_path=""
 	for dir in "${roms_dirs[@]}"; do
@@ -91,7 +98,7 @@ print(t.get('Rom File', ''))
 	# sol2tas loads the core to read its controller definition, so it needs the
 	# host library on the search path
 	if LD_LIBRARY_PATH="$dll" MONO_PATH="$dll" mono "$converter" \
-		"$package_dir" "$rom_path" "$test_file" "$suite/$name.sol" "$out_dir/$name.tas" > /dev/null 2>&1; then
+		"$package_dir" "$rom_path" "$test_file" "$suite/$seq_file" "$out_dir/$name.tas" > /dev/null 2>&1; then
 		printf "  %-36s ok\n" "$name"
 		made=$((made + 1))
 	else
