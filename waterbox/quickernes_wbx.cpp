@@ -210,7 +210,11 @@ namespace
 	constexpr int PtWidth = 256, PtHeight = 128;   // 2 pattern tables of 128x128
 	constexpr int OamWidth = 256, OamHeight = 128; // 64 sprites, 8 per row
 
-	uint32_t g_surface[NtWidth * NtHeight];
+	/* Tooling scratch lives in the INVISIBLE section: it is not part of any
+	 * savestate, so opening a viewer or the trace logger costs nothing per state.
+	 * Nothing in emulation may read it - it is written, handed to the host and
+	 * forgotten. */
+	ECL_INVISIBLE uint32_t g_surface[NtWidth * NtHeight];
 
 	inline uint32_t nesColor(int palIndex)
 	{
@@ -314,7 +318,7 @@ namespace
 	 * terminated lines here; the host drains it once per frame. Crossing the
 	 * sandbox boundary per instruction would be unusably slow. */
 	constexpr int TraceBufBytes = 1 << 20;
-	char g_traceBuf[TraceBufBytes];
+	ECL_INVISIBLE char g_traceBuf[TraceBufBytes];
 	int g_traceUsed = 0;
 	int g_traceLines = 0;
 	int g_traceEnabled = 0;
@@ -370,6 +374,8 @@ ECL_EXPORT int64_t GetRegisterValue(int i)
 /* ---- address buses (peek/poke beyond the memory domains) ---- */
 ECL_EXPORT int GetBusCount(void) { return kBusCount; }
 ECL_EXPORT const char *GetBusName(int i) { return (i >= 0 && i < kBusCount) ? kBusNames[i] : nullptr; }
+/* the PPU bus is read-only here: peek_ppu has no poke_ppu counterpart */
+ECL_EXPORT int GetBusWritable(int i) { return i == 0; }
 ECL_EXPORT int64_t GetBusSize(int i) { return (i >= 0 && i < kBusCount) ? kBusSizes[i] : 0; }
 ECL_EXPORT int PeekBus(int bus, int addr)
 {
