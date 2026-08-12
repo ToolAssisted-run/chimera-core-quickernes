@@ -23,11 +23,11 @@ What is still here, and why:
   See [`lua/README.md`](lua/README.md).
 - `palettes/` — NES palettes. Parked for the same reason: no palette contract
   in the waterbox package format yet.
-- `tests/` — the old frontend replay witness (movies, goldens, Xvfb/Mono
-  driver). It drives the retired package path and so does not run today, but
-  the movie suite and RAM goldens are reusable if the waterbox port ever gets a
-  frontend-level replay gate. The waterbox port's own gate lives in
-  `waterbox/` and needs none of this.
+- `tests/` — the frontend replay witness (movies, goldens, Xvfb/Mono driver).
+  **Live**: it now replays the suite against the waterbox package and compares
+  against the same goldens it always used, which is what proves the sandboxed
+  core emulates identically to the retired native one. See
+  [`tests/README.md`](tests/README.md).
 
 ## Licensing and authorship
 

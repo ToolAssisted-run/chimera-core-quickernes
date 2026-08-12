@@ -1,6 +1,11 @@
 -- miniHawk Level B witness: replay a quickerNES .sol input sequence through
 -- EmuHawk's frontend input pipeline and dump the final RAM (low mem, 2KB).
 --
+-- The core under test is the WATERBOX package: one generic adapter driving
+-- core.wbx. Button names and the paddle axis come from the package's
+-- waterbox.config, and which peripheral each console port holds is a user
+-- setting the driver writes into the config (see run-level-b.sh).
+--
 -- Job description is read from the file named by the MINIHAWK_JOB env var:
 --   sol=<path to .sol>
 --   out=<path to write final RAM dump (binary)>
@@ -91,19 +96,11 @@ end
 local c1 = job.controller1 or "Joypad"
 local c2 = job.controller2 or "None"
 
--- Axis values cannot be delivered via joypad.setanalog (axis sticky-holds never
--- reach the output controller in this build), so the Arkanoid controller types
--- deliver the whole frame's input as a bk2 mnemonic string instead:
--- joypad.setfrommnemonicstr routes both buttons AND axes through the
--- ButtonOverrideAdapter, which Controller.Overrides() honors.
--- bk2 entry shape: groups by player (console group first), axes-before-buttons
--- within a group, axes rendered as PadLeft(5) .. ',', empty groups still emit
--- their '|' delimiter.
-local function padLeft5(n)
-	local s = tostring(n)
-	return string.rep(" ", 5 - #s) .. s
-end
-
+-- The paddle is an analog control, so it cannot ride in the button mask: it goes
+-- through joypad.setaxis, which pushes a value into the override adapter for
+-- this frame exactly as joypad.set does for buttons. (joypad.setanalog is a
+-- different thing - a sticky autohold - and never reaches the core from a
+-- script in this build.)
 local function applyInput(line)
 	local fields = splitFields(line)
 	local buttons = {}
@@ -116,16 +113,20 @@ local function applyInput(line)
 	fi = fi + 1
 
 	if c1 == "ArkanoidNES" then
-		-- def groups: [0]=Reset,Power [1]=(empty) [2]=P2 Paddle,P2 Fire
+		-- the paddle occupies port 1; these sols carry no pad field
 		local pot, fire = decodeArkanoid(fields[fi])
-		joypad.setfrommnemonicstr("|..||" .. padLeft5(pot) .. "," .. (fire and "F" or ".") .. "|")
+		joypad.setaxis("P2 Paddle", pot)
+		joypad.set({ ["P2 Fire"] = fire })
 		return
 	elseif c1 == "ArkanoidFamicom" then
-		-- def groups: [0]=Reset,Power [1]=P1 joypad [2]=P2 dummy (7 buttons) [3]=P3 Paddle,P3 Fire
+		-- port 1 holds a normal pad; the paddle is on the famicom expansion port
 		local joy = fields[fi]
 		fi = fi + 2 -- skip the 7-dot unsupported famicom expansion field
 		local pot, fire = decodeArkanoid(fields[fi])
-		joypad.setfrommnemonicstr("|..|" .. joy .. "|.......|" .. padLeft5(pot) .. "," .. (fire and "F" or ".") .. "|")
+		decodeJoypad(joy, "P1", buttons)
+		buttons["P3 Fire"] = fire
+		joypad.setaxis("P3 Paddle", pot)
+		joypad.set(buttons)
 		return
 	end
 
@@ -156,7 +157,9 @@ end
 if emu.getsystemid() ~= "NES" then
 	finish("ERROR", "wrong system id: " .. tostring(emu.getsystemid()))
 end
-meta.boardname = tostring(emu.getboardname())
+-- IBoardInfo is not part of the waterbox package contract
+local okBoard, boardName = pcall(emu.getboardname)
+meta.boardname = okBoard and tostring(boardName) or ""
 
 -- ---------- clean power-on ----------
 -- EmuHawk emulates one frame during ROM load, before this script gains

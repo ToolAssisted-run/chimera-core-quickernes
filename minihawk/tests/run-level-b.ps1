@@ -1,13 +1,20 @@
 ﻿# miniHawk Level B witness driver.
-# Replays each quickerNES .sol test through EmuHawk (QuickNes core) and dumps
-# the final 2KB RAM. In -Record mode the dumps become goldens; otherwise dumps
-# are byte-compared against the stored goldens.
+# Replays each quickerNES .sol test through EmuHawk against the WATERBOX package
+# - core.wbx driven by miniHawk's one generic adapter - and dumps the final 2KB
+# RAM. In -Record mode the dumps become goldens; otherwise dumps are
+# byte-compared against the stored goldens.
+#
+# The goldens predate the waterbox port: they were recorded through the retired
+# managed package and cross-validated against the native tester's own dumps
+# (goldens/native/). Reproducing them byte-for-byte is exactly the proof that
+# sandboxing changed no emulation.
 #
 # EmuHawk instances run on a separate hidden Windows desktop (no window appears)
 # and up to -Parallel of them run concurrently, each with private config/job files.
 #
 # Usage:
-#   .\run-level-b.ps1                 # verify against goldens (simple mode)
+#   .\run-level-b.ps1                 # verify the free-to-distribute set (CI default)
+#   .\run-level-b.ps1 -Set full       # the whole witness set (commercial roms)
 #   .\run-level-b.ps1 -Record        # record goldens from current build
 #   .\run-level-b.ps1 -Mode rerecord # per-frame savestate round-trip variant
 #   .\run-level-b.ps1 -Filter super  # only tests whose name matches
@@ -16,10 +23,16 @@ param(
     [switch]$Record,
     [switch]$SkipExisting,
     [ValidateSet("simple", "rerecord")] [string]$Mode = "simple",
+    # "free" is the default because it is the only set that can run anywhere: its
+    # roms are redistributable and vendored in suite/roms, so CI needs nothing
+    # provisioned. "full" adds the commercial-rom tests, which live in a local rom
+    # library - run it for significant changes, before a push, and whenever the
+    # core or the ABI moves.
+    [ValidateSet("free", "full")] [string]$Set = "free",
     [string]$Filter = "",
     [int]$Checkpoint = 0,
     [int]$Parallel = 8,
-    [int]$TimeoutSec = 1800,
+    [int]$TimeoutSec = 7200, # superOffroad.anyPercent is 182,180 frames; a smaller cap reports it as TIMEOUT
     [string]$MiniHawkRoot = ""
 )
 
@@ -108,7 +121,7 @@ $romsDirs   = @((Join-Path $testsDir "roms"), "C:\Users\sergiom\Documents\TAS\ro
 $emuHawk    = Join-Path $repoRoot "build\EmuHawk.exe"
 # cores load explicitly (no discovery): every instance is told which package to use
 $corePackage = Join-Path $repoRoot "build\Cores\quickernes.zip"
-if (-not (Test-Path -LiteralPath $corePackage)) { throw "core package not found at $corePackage (run quickerNES/minihawk/build-package.ps1 first)" }
+if (-not (Test-Path -LiteralPath $corePackage)) { throw "core package not found at $corePackage (run quickerNES/waterbox/build-package.sh first)" }
 $harnessDir = $PSScriptRoot
 $workDir    = Join-Path $harnessDir "work"
 $runDir     = Join-Path $workDir "run"
@@ -116,9 +129,52 @@ $goldenDir  = Join-Path $harnessDir "goldens\levelB"
 $replayLua  = Join-Path $harnessDir "replay.lua"
 
 # Tests excluded from the witness set (see miniHawk's docs/design-principles.md for rationale)
+# Tests whose roms are free to distribute and are vendored in suite/roms. This is
+# the CI set: it needs nothing provisioned.
+$freeSet = @(
+    "sprilo.anyPercent",
+    "novaTheSquirrel.anyPercent"
+)
+
 $excluded = @(
     "castlevania3.playaround",        # mapper 5 deliberately disabled in pinned core
-    "novaTheSquirrel.anyPercent",     # pinned-core segfault (mapper 30 serializeState)
+    "arkanoid2.arkFamicomController", # local ROM dump SHA1 mismatch
+    "microMachines.race20",           # starts from quickerNES-native .state (Level A only)
+    "saiyuukiWorld.lastHalf"          # starts from quickerNES-native .state (Level A only)
+)
+
+New-Item -ItemType Directory -Force $workDir, $runDir | Out-Null
+if ($Record) { New-Item -ItemType Directory -Force $goldenDir | Out-Null }
+
+# Base config: created by EmuHawk on first ever run; harness settings enforced here.
+$configFilePath = Join-Path $workDir "config.ini"
+if (Test-Path -LiteralPath $configFilePath) {
+    $cfg = Get-Content -LiteralPath $configFilePath -Raw | ConvertFrom-Json
+    $cfg.SoundEnabled = $false
+    # Lua input passes through the SOCD filter and the movies use simultaneous
+    # L+R/U+D, so opposing directions must be allowed (2).
+    $cfg.OpposingDirPolicy = 2
+    # GDI+ display: software-GL rendering wastes cores and cannot affect emulation
+    $cfg.DispMethod = 1
+    # Rewind captures a savestate EVERY frame. A replay never rewinds, so that is
+    # pure cost - and for a waterbox core it dominates everything else. The
+    # rerecord mode does its own explicit per-frame save/load through Lua.
+    if ($null -eq $cfg.Rewind) {
+        $cfg | Add-Member -NotePropertyName Rewind -NotePropertyValue ([pscustomobject]@{}) -Force
+    }
+    $cfg.Rewind | Add-Member -NotePropertyName Enabled -NotePropertyValue $false -Force
+    $cfg | ConvertTo-Json -Depth 100 | Out-File -LiteralPath $configFilePath -Encoding utf8
+}
+
+# Tests whose roms are free to distribute and are vendored in suite/roms. This is
+# the CI set: it needs nothing provisioned.
+$freeSet = @(
+    "sprilo.anyPercent",
+    "novaTheSquirrel.anyPercent"
+)
+
+$excluded = @(
+    "castlevania3.playaround",        # mapper 5 deliberately disabled in pinned core
     "arkanoid2.arkFamicomController", # local ROM dump SHA1 mismatch
     "microMachines.race20",           # starts from quickerNES-native .state (Level A only)
     "saiyuukiWorld.lastHalf"          # starts from quickerNES-native .state (Level A only)
@@ -138,30 +194,35 @@ if (Test-Path -LiteralPath $configFilePath) {
     if ($new -ne $raw) { Set-Content -LiteralPath $configFilePath -Value $new -Encoding utf8 }
 }
 
-# Some tests need non-default QuickNes sync settings (port peripherals).
-# Port enum values: Port1 Gamepad=1 FourScore=2 ArkanoidNES=4 ArkanoidFamicom=5;
-# Port2 Unplugged=0 Gamepad=1 FourScore2=3.
-function Get-ConfigVariant([string]$tag, [int]$port1, [int]$port2) {
+# Some tests need a non-default peripheral in a console port. Under the waterbox
+# package that is a plain user setting: the adapter merges the package defaults
+# with the user's sync settings and mounts the result as JSON for the guest to
+# read at Init. All waterbox cores share the one adapter type, so they share this
+# config key - fine here, where one core is under test.
+$wbxSettingsKey = "BizHawk.Emulation.Common.Waterbox.WaterboxCore"
+function Get-ConfigVariant([string]$tag, [string]$port1, [string]$port2) {
     $variant = Join-Path $workDir "config.$tag.ini"
     if (-not (Test-Path -LiteralPath $variant)) {
         if (-not (Test-Path -LiteralPath $configFilePath)) { return $null }
         $cfg = Get-Content -LiteralPath $configFilePath -Raw | ConvertFrom-Json
-        $qn = [pscustomobject]@{ Port1 = $port1; Port2 = $port2 }
+        $wbx = [pscustomobject]@{ Values = [pscustomobject]@{ port1 = $port1; port2 = $port2 } }
         if ($null -eq $cfg.CoreSyncSettings) {
             $cfg | Add-Member -NotePropertyName CoreSyncSettings -NotePropertyValue ([pscustomobject]@{}) -Force
         }
-        $cfg.CoreSyncSettings | Add-Member -NotePropertyName "BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES.QuickNES" -NotePropertyValue $qn -Force
+        $cfg.CoreSyncSettings | Add-Member -NotePropertyName $wbxSettingsKey -NotePropertyValue $wbx -Force
         $cfg | ConvertTo-Json -Depth 100 | Out-File -LiteralPath $variant -Encoding utf8
     }
     return $variant
 }
 
+# .test "Controller 1 Type" -> what the guest should plug into each port. The
+# frontend never learns what any of these mean; it just ships the setting.
 function Get-ConfigForTest($testJson) {
     switch ($testJson."Controller 1 Type") {
-        "ArkanoidNES"     { return Get-ConfigVariant "arkanoidNES" 4 0 }
-        "ArkanoidFamicom" { return Get-ConfigVariant "arkanoidFamicom" 5 0 }
-        "FourScore1"      { return Get-ConfigVariant "fourscore" 2 3 }
-        default           { return $configFilePath }
+        "ArkanoidNES"     { return Get-ConfigVariant "arkanoidNES" "arkanoidNES" "none" }
+        "ArkanoidFamicom" { return Get-ConfigVariant "arkanoidFamicom" "arkanoidFamicom" "none" }
+        "FourScore1"      { return Get-ConfigVariant "fourscore" "fourscore" "fourscore" }
+        default           { return Get-ConfigVariant "gamepad" "gamepad" "none" }
     }
 }
 
@@ -182,6 +243,7 @@ foreach ($testFile in $tests) {
     $name = $testFile.BaseName
     if ($excluded -contains $name) { continue }
     if ($Filter -and ($name -notmatch $Filter)) { continue }
+    if ($Set -eq "free" -and ($freeSet -notcontains $name)) { continue }
 
     $t = Get-Content -LiteralPath $testFile.FullName -Raw | ConvertFrom-Json
     $romPath = Get-RomPath $t."Rom File"
@@ -303,6 +365,6 @@ while ($jobs.Count -gt 0 -or $running.Count -gt 0) {
 $results | Sort-Object Test | Format-Table -AutoSize
 $failed = @($results | Where-Object { $_.Result -in @("FAIL", "TIMEOUT", "NOGOLDEN") })
 Write-Host ""
-Write-Host "$(@($results | Where-Object { $_.Result -in @('PASS','RECORDED') }).Count) ok, $($failed.Count) failed, $(@($results | Where-Object Result -eq 'SKIP').Count) skipped"
+Write-Host "$(@($results | Where-Object { $_.Result -in @('PASS','RECORDED') }).Count) ok, $($failed.Count) failed, $(@($results | Where-Object Result -eq 'SKIP').Count) skipped  (set: $Set, mode: $Mode)"
 if ($failed.Count -gt 0) { exit 1 }
 exit 0

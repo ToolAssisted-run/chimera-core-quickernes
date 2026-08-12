@@ -1,14 +1,21 @@
 #!/bin/bash
 # miniHawk Level B witness driver — Linux port of run-level-b.ps1.
-# Replays each quickerNES .sol test through EmuHawk (QuickNes core, under Mono)
-# and dumps the final 2KB RAM. In --record mode the dumps become goldens;
-# otherwise dumps are byte-compared against the stored goldens.
+# Replays each quickerNES .sol test through EmuHawk (under Mono) against the
+# WATERBOX package - core.wbx driven by miniHawk's one generic adapter - and
+# dumps the final 2KB RAM. In --record mode the dumps become goldens; otherwise
+# dumps are byte-compared against the stored goldens.
+#
+# The goldens predate the waterbox port: they were recorded through the retired
+# managed package and cross-validated against the native tester's own dumps
+# (goldens/native/). Reproducing them byte-for-byte is exactly the proof that
+# sandboxing changed no emulation.
 #
 # EmuHawk instances run on a private Xvfb display (no window appears) and up to
 # --parallel of them run concurrently, each with private config/job files.
 #
 # Usage:
-#   ./run-level-b.sh                  # verify against goldens (simple mode)
+#   ./run-level-b.sh                  # verify the free-to-distribute set (CI default)
+#   ./run-level-b.sh --set full       # the whole witness set (commercial roms)
 #   ./run-level-b.sh --record         # record goldens from current build
 #   ./run-level-b.sh --mode rerecord  # per-frame savestate round-trip variant
 #   ./run-level-b.sh --filter super   # only tests whose name matches (regex)
@@ -19,16 +26,26 @@ set -u
 record=0
 skip_existing=0
 mode=simple
+# Which tests to run. "free" is the default because it is the only set that can
+# run anywhere: its roms are redistributable and vendored in suite/roms, so CI
+# needs nothing provisioned. "full" adds the commercial-rom tests, which live in
+# a local rom library - run it for significant changes, before a push, and
+# whenever the core or the ABI moves.
+set_name=free
 filter=""
 checkpoint=0
 parallel=8
-timeout_sec=1800
+# Per-test wall-clock cap. superOffroad.anyPercent is 182,180 frames - minutes of
+# wall clock even at replay speed, and several times that in rerecord mode - so
+# the default has to clear it or the longest test in the set reports TIMEOUT.
+timeout_sec=7200
 minihawk_root=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--record) record=1 ;;
 		--skip-existing) skip_existing=1 ;;
 		--mode) mode="$2"; shift ;;
+		--set) set_name="$2"; shift ;;
 		--filter) filter="$2"; shift ;;
 		--checkpoint) checkpoint="$2"; shift ;;
 		--parallel) parallel="$2"; shift ;;
@@ -39,6 +56,14 @@ while [ $# -gt 0 ]; do
 	shift
 done
 case "$mode" in simple|rerecord) ;; *) echo "--mode must be simple or rerecord" >&2; exit 2 ;; esac
+case "$set_name" in free|full) ;; *) echo "--set must be free or full" >&2; exit 2 ;; esac
+
+# Tests whose roms are free to distribute and are vendored in suite/roms. This is
+# the CI set: it needs nothing provisioned.
+free_set=(
+	"sprilo.anyPercent"
+	"novaTheSquirrel.anyPercent"
+)
 
 harness_dir="$(cd "$(dirname "$0")" && pwd)"
 if [ -z "$minihawk_root" ]; then
@@ -54,7 +79,7 @@ roms_dirs=("$tests_dir/roms" "$HOME/TAS/roms/nes")
 emu_hawk="$repo_root/build/EmuHawk.exe"
 # cores load explicitly (no discovery): every instance is told which package to use
 core_package="$repo_root/build/Cores/quickernes.zip"
-[ -f "$core_package" ] || { echo "core package not found at $core_package (run quickerNES/minihawk/build-package.sh first)" >&2; exit 1; }
+[ -f "$core_package" ] || { echo "core package not found at $core_package (run quickerNES/waterbox/build-package.sh first)" >&2; exit 1; }
 work_dir="$harness_dir/work"
 run_dir="$work_dir/run"
 golden_dir="$harness_dir/goldens/levelB"
@@ -63,7 +88,6 @@ replay_lua="$harness_dir/replay.lua"
 # Tests excluded from the witness set (see miniHawk's docs/design-principles.md for rationale)
 excluded=(
 	"castlevania3.playaround"        # mapper 5 deliberately disabled in pinned core
-	"novaTheSquirrel.anyPercent"     # pinned-core segfault (mapper 30 serializeState)
 	"arkanoid2.arkFamicomController" # local ROM dump SHA1 mismatch
 	"microMachines.race20"           # starts from quickerNES-native .state (Level A only)
 	"saiyuukiWorld.lastHalf"         # starts from quickerNES-native .state (Level A only)
@@ -111,47 +135,57 @@ if [ ! -f "$config_file" ]; then
 fi
 if [ -f "$config_file" ]; then
 	python3 - "$config_file" <<'EOF'
-import io, sys
+import io, json, sys
 path = sys.argv[1]
-raw = io.open(path, encoding="utf-8-sig").read()
-new = raw.replace('"SoundEnabled": true', '"SoundEnabled": false')
-import re
-new = re.sub(r'"OpposingDirPolicy": \d', '"OpposingDirPolicy": 2', new)
+cfg = json.load(io.open(path, encoding="utf-8-sig"))
+cfg["SoundEnabled"] = False
+# Lua input passes through the SOCD filter and the movies use simultaneous
+# L+R/U+D, so opposing directions must be allowed (2).
+cfg["OpposingDirPolicy"] = 2
 # GDI+ display: on the hidden test display, OpenGL means Mesa's llvmpipe
 # software rasterizer - ~32 threads per instance, catastrophic under
 # parallel gates. Display method cannot affect emulation (pillar).
-new = re.sub(r'"DispMethod": \d', '"DispMethod": 1', new)
-if new != raw:
-    io.open(path, "w", encoding="utf-8").write(new)
+cfg["DispMethod"] = 1
+# Rewind captures a savestate EVERY frame. A replay never rewinds, so that is
+# pure cost - and for a waterbox core it dominates everything else, an order of
+# magnitude more than the emulation itself. The rerecord mode does its own
+# explicit per-frame save/load through Lua, so no coverage is lost.
+cfg.setdefault("Rewind", {})["Enabled"] = False
+io.open(path, "w", encoding="utf-8").write(json.dumps(cfg, indent=2))
 EOF
 fi
 
-# Some tests need non-default QuickNes sync settings (port peripherals).
-# Port enum values: Port1 Gamepad=1 FourScore=2 ArkanoidNES=4 ArkanoidFamicom=5;
-# Port2 Unplugged=0 Gamepad=1 FourScore2=3.
+# Some tests need a non-default peripheral in a console port. Under the waterbox
+# package that is a plain user setting: the adapter merges the package defaults
+# with the user's sync settings and mounts the result as JSON for the guest to
+# read at Init. All waterbox cores share the one adapter type, so they share this
+# config key - fine here, where one core is under test.
+WBX_SETTINGS_KEY="BizHawk.Emulation.Common.Waterbox.WaterboxCore"
 config_variant() { # tag port1 port2 -> path (empty if base config missing yet)
 	local tag="$1" port1="$2" port2="$3"
 	local variant="$work_dir/config.$tag.ini"
 	if [ ! -f "$variant" ]; then
 		[ -f "$config_file" ] || { echo ""; return; }
-		python3 - "$config_file" "$variant" "$port1" "$port2" <<'EOF'
+		python3 - "$config_file" "$variant" "$port1" "$port2" "$WBX_SETTINGS_KEY" <<'EOF'
 import io, json, sys
-src, dst, port1, port2 = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
+src, dst, port1, port2, key = sys.argv[1:6]
 cfg = json.load(io.open(src, encoding="utf-8-sig"))
 css = cfg.setdefault("CoreSyncSettings", {})
-css["BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES.QuickNES"] = {"Port1": port1, "Port2": port2}
+css[key] = {"Values": {"port1": port1, "port2": port2}}
 io.open(dst, "w", encoding="utf-8").write(json.dumps(cfg, indent=2))
 EOF
 	fi
 	echo "$variant"
 }
 
+# .test "Controller 1 Type" -> what the guest should plug into each port. The
+# frontend never learns what any of these mean; it just ships the setting.
 config_for_test() { # controller1-type -> config template path
 	case "$1" in
-		ArkanoidNES)     config_variant arkanoidNES 4 0 ;;
-		ArkanoidFamicom) config_variant arkanoidFamicom 5 0 ;;
-		FourScore1)      config_variant fourscore 2 3 ;;
-		*)               echo "$config_file" ;;
+		ArkanoidNES)     config_variant arkanoidNES arkanoidNES none ;;
+		ArkanoidFamicom) config_variant arkanoidFamicom arkanoidFamicom none ;;
+		FourScore1)      config_variant fourscore fourscore fourscore ;;
+		*)               config_variant gamepad gamepad none ;;
 	esac
 }
 
@@ -173,6 +207,11 @@ for test_file in "$tests_dir"/*.test; do
 	for ex in "${excluded[@]}"; do [ "$name" = "$ex" ] && skip=1; done
 	[ "$skip" -eq 1 ] && continue
 	if [ -n "$filter" ] && ! [[ "$name" =~ $filter ]]; then continue; fi
+	if [ "$set_name" = "free" ]; then
+		in_free=0
+		for f in "${free_set[@]}"; do [ "$name" = "$f" ] && in_free=1; done
+		[ "$in_free" -eq 1 ] || continue
+	fi
 
 	# .test JSON fields: "Rom File", "Expected ROM SHA1", "Sequence File",
 	# "Controller 1 Type", "Controller 2 Type"
@@ -310,6 +349,6 @@ while IFS='|' read -r name result detail; do
 	esac
 done < <(printf "%s\n" "${results[@]}" | sort)
 echo ""
-echo "$ok ok, $failed failed, $skipped skipped"
+echo "$ok ok, $failed failed, $skipped skipped  (set: $set_name, mode: $mode)"
 [ "$failed" -gt 0 ] && exit 1
 exit 0
