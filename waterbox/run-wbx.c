@@ -8,6 +8,8 @@
  * save/load state around every frame; the digests must be identical either way.
  */
 #include "minibox.h"
+/* guest entry points are sysv64 even on a win64 host (MB_GUEST_ABI is a no-op
+ * on Linux); without this the driver cannot call a guest on Windows at all */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,12 +56,12 @@ static uint8_t padForFrame(long frame)
 	return (uint8_t)(x & 0xFF);
 }
 
-typedef int (*intfn)(void);
-typedef void (*framefn)(uint64_t);
-typedef uintptr_t (*ptrfn)(void);
-typedef uintptr_t (*ptrfn_i)(int);
-typedef int (*intfn_i)(int);
-typedef int64_t (*i64fn_i)(int);
+typedef int (MB_GUEST_ABI *intfn)(void);
+typedef void (MB_GUEST_ABI *framefn)(uint64_t);
+typedef uintptr_t (MB_GUEST_ABI *ptrfn)(void);
+typedef uintptr_t (MB_GUEST_ABI *ptrfn_i)(int);
+typedef int (MB_GUEST_ABI *intfn_i)(int);
+typedef int64_t (MB_GUEST_ABI *i64fn_i)(int);
 
 static uintptr_t proc(mb_host *h, const char *n)
 {
