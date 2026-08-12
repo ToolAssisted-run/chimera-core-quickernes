@@ -1,5 +1,5 @@
 ﻿# miniHawk Level B witness driver.
-# Replays each quickerNES .sol test through EmuHawk against the WATERBOX package
+# Plays each test's .tas movie through EmuHawk against the WATERBOX package
 # - core.wbx driven by miniHawk's one generic adapter - and dumps the final 2KB
 # RAM. In -Record mode the dumps become goldens; otherwise dumps are
 # byte-compared against the stored goldens.
@@ -16,13 +16,11 @@
 #   .\run-level-b.ps1                 # verify the free-to-distribute set (CI default)
 #   .\run-level-b.ps1 -Set full       # the whole witness set (commercial roms)
 #   .\run-level-b.ps1 -Record        # record goldens from current build
-#   .\run-level-b.ps1 -Mode rerecord # per-frame savestate round-trip variant
 #   .\run-level-b.ps1 -Filter super  # only tests whose name matches
 
 param(
     [switch]$Record,
     [switch]$SkipExisting,
-    [ValidateSet("simple", "rerecord")] [string]$Mode = "simple",
     # "free" is the default because it is the only set that can run anywhere: its
     # roms are redistributable and vendored in suite/roms, so CI needs nothing
     # provisioned. "full" adds the commercial-rom tests, which live in a local rom
@@ -126,7 +124,8 @@ $harnessDir = $PSScriptRoot
 $workDir    = Join-Path $harnessDir "work"
 $runDir     = Join-Path $workDir "run"
 $goldenDir  = Join-Path $harnessDir "goldens\levelB"
-$replayLua  = Join-Path $harnessDir "replay.lua"
+$playLua    = Join-Path $harnessDir "playmovie.lua"
+$moviesDir  = Join-Path $harnessDir "movies"
 
 # Tests excluded from the witness set (see miniHawk's docs/design-principles.md for rationale)
 # Tests whose roms are free to distribute and are vendored in suite/roms. This is
@@ -158,7 +157,7 @@ if (Test-Path -LiteralPath $configFilePath) {
     $cfg.DispMethod = 1
     # Rewind captures a savestate EVERY frame. A replay never rewinds, so that is
     # pure cost - and for a waterbox core it dominates everything else. The
-    # rerecord mode does its own explicit per-frame save/load through Lua.
+    # Savestate faithfulness is proven at the core level (waterbox/run-gate.sh).
     if ($null -eq $cfg.Rewind) {
         $cfg | Add-Member -NotePropertyName Rewind -NotePropertyValue ([pscustomobject]@{}) -Force
     }
@@ -194,37 +193,8 @@ if (Test-Path -LiteralPath $configFilePath) {
     if ($new -ne $raw) { Set-Content -LiteralPath $configFilePath -Value $new -Encoding utf8 }
 }
 
-# Some tests need a non-default peripheral in a console port. Under the waterbox
-# package that is a plain user setting: the adapter merges the package defaults
-# with the user's sync settings and mounts the result as JSON for the guest to
-# read at Init. All waterbox cores share the one adapter type, so they share this
-# config key - fine here, where one core is under test.
-$wbxSettingsKey = "BizHawk.Emulation.Common.Waterbox.WaterboxCore"
-function Get-ConfigVariant([string]$tag, [string]$port1, [string]$port2) {
-    $variant = Join-Path $workDir "config.$tag.ini"
-    if (-not (Test-Path -LiteralPath $variant)) {
-        if (-not (Test-Path -LiteralPath $configFilePath)) { return $null }
-        $cfg = Get-Content -LiteralPath $configFilePath -Raw | ConvertFrom-Json
-        $wbx = [pscustomobject]@{ Values = [pscustomobject]@{ port1 = $port1; port2 = $port2 } }
-        if ($null -eq $cfg.CoreSyncSettings) {
-            $cfg | Add-Member -NotePropertyName CoreSyncSettings -NotePropertyValue ([pscustomobject]@{}) -Force
-        }
-        $cfg.CoreSyncSettings | Add-Member -NotePropertyName $wbxSettingsKey -NotePropertyValue $wbx -Force
-        $cfg | ConvertTo-Json -Depth 100 | Out-File -LiteralPath $variant -Encoding utf8
-    }
-    return $variant
-}
-
-# .test "Controller 1 Type" -> what the guest should plug into each port. The
-# frontend never learns what any of these mean; it just ships the setting.
-function Get-ConfigForTest($testJson) {
-    switch ($testJson."Controller 1 Type") {
-        "ArkanoidNES"     { return Get-ConfigVariant "arkanoidNES" "arkanoidNES" "none" }
-        "ArkanoidFamicom" { return Get-ConfigVariant "arkanoidFamicom" "arkanoidFamicom" "none" }
-        "FourScore1"      { return Get-ConfigVariant "fourscore" "fourscore" "fourscore" }
-        default           { return Get-ConfigVariant "gamepad" "gamepad" "none" }
-    }
-}
+# Peripherals (Four Score, Arkanoid paddles) are carried in the movie's own sync
+# settings now, so every test runs from the same base config.
 
 function Get-RomPath([string]$romFileEntry) {
     $name = $romFileEntry -replace "^roms/", ""
@@ -256,17 +226,17 @@ foreach ($testFile in $tests) {
         [void]$results.Add([pscustomobject]@{ Test = $name; Result = "SKIP"; Detail = "ROM SHA1 mismatch" })
         continue
     }
-    if ($Record -and $SkipExisting -and (Test-Path -LiteralPath (Join-Path $goldenDir "$name.$Mode.ram.bin"))) {
+    if ($Record -and $SkipExisting -and (Test-Path -LiteralPath (Join-Path $goldenDir "$name."simple".ram.bin"))) {
         [void]$results.Add([pscustomobject]@{ Test = $name; Result = "RECORDED"; Detail = "already present (skipped)" })
         continue
     }
-    $cfgTemplate = Get-ConfigForTest $t
-    if ($null -eq $cfgTemplate) {
-        [void]$results.Add([pscustomobject]@{ Test = $name; Result = "SKIP"; Detail = "base config.ini not generated yet; rerun" })
+    $moviePath = Join-Path $moviesDir "$name.tas"
+    if (-not (Test-Path -LiteralPath $moviePath)) {
+        [void]$results.Add([pscustomobject]@{ Test = $name; Result = "SKIP"; Detail = "no movie: run tools/make-movies.sh" })
         continue
     }
     $jobs.Enqueue([pscustomobject]@{
-        Name = $name; Test = $t; RomPath = $romPath; CfgTemplate = $cfgTemplate
+        Name = $name; Test = $t; RomPath = $romPath; MoviePath = $moviePath
     })
 }
 
@@ -275,26 +245,21 @@ $running = New-Object System.Collections.ArrayList
 
 function Start-TestJob($job) {
     $name     = $job.Name
-    $outFile  = Join-Path $workDir "$name.$Mode.ram.bin"
-    $metaFile = Join-Path $workDir "$name.$Mode.meta.txt"
+    $outFile  = Join-Path $workDir "$name."simple".ram.bin"
+    $metaFile = Join-Path $workDir "$name."simple".meta.txt"
     Remove-Item -Force -ErrorAction SilentlyContinue $outFile, $metaFile
 
     # private config + job file per instance (EmuHawk rewrites config on exit)
     $cfgRun = Join-Path $runDir "config.$name.ini"
-    Copy-Item -LiteralPath $job.CfgTemplate $cfgRun -Force
+    Copy-Item -LiteralPath $configFilePath $cfgRun -Force
     $jobFile = Join-Path $runDir "job.$name.txt"
     @(
-        "sol=$(Join-Path $testsDir $job.Test.'Sequence File')",
         "out=$outFile",
-        "meta=$metaFile",
-        "controller1=$($job.Test.'Controller 1 Type')",
-        "controller2=$($job.Test.'Controller 2 Type')",
-        "mode=$Mode",
-        "checkpoint=$Checkpoint"
+        "meta=$metaFile"
     ) | Out-File -LiteralPath $jobFile -Encoding ascii
 
     $env:MINIHAWK_JOB = $jobFile   # snapshotted into the child env at CreateProcess
-    $cmdLine = "`"$emuHawk`" --headless `"--config=$cfgRun`" `"--core=$corePackage`" `"--lua=$replayLua`" `"$($job.RomPath)`""
+    $cmdLine = "`"$emuHawk`" --headless `"--config=$cfgRun`" `"--core=$corePackage`" `"--movie=$($job.MoviePath)`" `"--lua=$playLua`" `"$($job.RomPath)`""
     $h = [HiddenLauncher]::Launch("minihawk_hidden", $cmdLine, $repoRoot)
     [void]$running.Add([pscustomobject]@{
         Name = $name; Handle = $h; Sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -319,11 +284,11 @@ function Complete-TestJob($slot) {
     }
     $secs = [int]$slot.Sw.Elapsed.TotalSeconds
     if ($Record) {
-        Copy-Item -LiteralPath $slot.OutFile (Join-Path $goldenDir "$name.$Mode.ram.bin") -Force
+        Copy-Item -LiteralPath $slot.OutFile (Join-Path $goldenDir "$name."simple".ram.bin") -Force
         [void]$results.Add([pscustomobject]@{ Test = $name; Result = "RECORDED"; Detail = "$($metaContent['frames']) frames in ${secs}s" })
         return
     }
-    $goldenFile = Join-Path $goldenDir "$name.$Mode.ram.bin"
+    $goldenFile = Join-Path $goldenDir "$name."simple".ram.bin"
     if (-not (Test-Path -LiteralPath $goldenFile)) {
         [void]$results.Add([pscustomobject]@{ Test = $name; Result = "NOGOLDEN"; Detail = "" })
         return
@@ -365,6 +330,6 @@ while ($jobs.Count -gt 0 -or $running.Count -gt 0) {
 $results | Sort-Object Test | Format-Table -AutoSize
 $failed = @($results | Where-Object { $_.Result -in @("FAIL", "TIMEOUT", "NOGOLDEN") })
 Write-Host ""
-Write-Host "$(@($results | Where-Object { $_.Result -in @('PASS','RECORDED') }).Count) ok, $($failed.Count) failed, $(@($results | Where-Object Result -eq 'SKIP').Count) skipped  (set: $Set, mode: $Mode)"
+Write-Host "$(@($results | Where-Object { $_.Result -in @('PASS','RECORDED') }).Count) ok, $($failed.Count) failed, $(@($results | Where-Object Result -eq 'SKIP').Count) skipped  (set: $Set)"
 if ($failed.Count -gt 0) { exit 1 }
 exit 0

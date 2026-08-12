@@ -1,8 +1,10 @@
 #!/bin/bash
 # miniHawk Level B witness driver — Linux port of run-level-b.ps1.
-# Replays each quickerNES .sol test through EmuHawk (under Mono) against the
-# WATERBOX package - core.wbx driven by miniHawk's one generic adapter - and
-# dumps the final 2KB RAM. In --record mode the dumps become goldens; otherwise
+# Plays each test's .tas movie through EmuHawk (under Mono) against the WATERBOX
+# package - core.wbx driven by miniHawk's one generic adapter - and dumps the
+# final 2KB RAM. Input comes from the movie, so the gate exercises the same path
+# a user does; the movies are generated from the .sol sequences by
+# tools/make-movies.sh. In --record mode the dumps become goldens; otherwise
 # dumps are byte-compared against the stored goldens.
 #
 # The goldens predate the waterbox port: they were recorded through the retired
@@ -17,7 +19,6 @@
 #   ./run-level-b.sh                  # verify the free-to-distribute set (CI default)
 #   ./run-level-b.sh --set full       # the whole witness set (commercial roms)
 #   ./run-level-b.sh --record         # record goldens from current build
-#   ./run-level-b.sh --mode rerecord  # per-frame savestate round-trip variant
 #   ./run-level-b.sh --filter super   # only tests whose name matches (regex)
 #   ./run-level-b.sh --minihawk-root <path>  # miniHawk checkout (default: sibling
 #                                            # ../../../miniHawk, then ../../../BizHawk)
@@ -25,7 +26,6 @@ set -u
 
 record=0
 skip_existing=0
-mode=simple
 # Which tests to run. "free" is the default because it is the only set that can
 # run anywhere: its roms are redistributable and vendored in suite/roms, so CI
 # needs nothing provisioned. "full" adds the commercial-rom tests, which live in
@@ -36,15 +36,14 @@ filter=""
 checkpoint=0
 parallel=8
 # Per-test wall-clock cap. superOffroad.anyPercent is 182,180 frames - minutes of
-# wall clock even at replay speed, and several times that in rerecord mode - so
-# the default has to clear it or the longest test in the set reports TIMEOUT.
+# wall clock even at replay speed, so the default has to clear it or the longest
+# test in the set reports TIMEOUT.
 timeout_sec=7200
 minihawk_root=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--record) record=1 ;;
 		--skip-existing) skip_existing=1 ;;
-		--mode) mode="$2"; shift ;;
 		--set) set_name="$2"; shift ;;
 		--filter) filter="$2"; shift ;;
 		--checkpoint) checkpoint="$2"; shift ;;
@@ -55,7 +54,6 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-case "$mode" in simple|rerecord) ;; *) echo "--mode must be simple or rerecord" >&2; exit 2 ;; esac
 case "$set_name" in free|full) ;; *) echo "--set must be free or full" >&2; exit 2 ;; esac
 
 # Tests whose roms are free to distribute and are vendored in suite/roms. This is
@@ -83,7 +81,7 @@ core_package="$repo_root/build/Cores/quickernes.zip"
 work_dir="$harness_dir/work"
 run_dir="$work_dir/run"
 golden_dir="$harness_dir/goldens/levelB"
-replay_lua="$harness_dir/replay.lua"
+play_lua="$harness_dir/playmovie.lua"
 
 # Tests excluded from the witness set (see miniHawk's docs/design-principles.md for rationale)
 excluded=(
@@ -148,46 +146,15 @@ cfg["OpposingDirPolicy"] = 2
 cfg["DispMethod"] = 1
 # Rewind captures a savestate EVERY frame. A replay never rewinds, so that is
 # pure cost - and for a waterbox core it dominates everything else, an order of
-# magnitude more than the emulation itself. The rerecord mode does its own
-# explicit per-frame save/load through Lua, so no coverage is lost.
+# magnitude more than the emulation itself. Savestate faithfulness is proven at
+# the core level (waterbox/run-gate.sh), not here.
 cfg.setdefault("Rewind", {})["Enabled"] = False
 io.open(path, "w", encoding="utf-8").write(json.dumps(cfg, indent=2))
 EOF
 fi
 
-# Some tests need a non-default peripheral in a console port. Under the waterbox
-# package that is a plain user setting: the adapter merges the package defaults
-# with the user's sync settings and mounts the result as JSON for the guest to
-# read at Init. All waterbox cores share the one adapter type, so they share this
-# config key - fine here, where one core is under test.
-WBX_SETTINGS_KEY="BizHawk.Emulation.Common.Waterbox.WaterboxCore"
-config_variant() { # tag port1 port2 -> path (empty if base config missing yet)
-	local tag="$1" port1="$2" port2="$3"
-	local variant="$work_dir/config.$tag.ini"
-	if [ ! -f "$variant" ]; then
-		[ -f "$config_file" ] || { echo ""; return; }
-		python3 - "$config_file" "$variant" "$port1" "$port2" "$WBX_SETTINGS_KEY" <<'EOF'
-import io, json, sys
-src, dst, port1, port2, key = sys.argv[1:6]
-cfg = json.load(io.open(src, encoding="utf-8-sig"))
-css = cfg.setdefault("CoreSyncSettings", {})
-css[key] = {"Values": {"port1": port1, "port2": port2}}
-io.open(dst, "w", encoding="utf-8").write(json.dumps(cfg, indent=2))
-EOF
-	fi
-	echo "$variant"
-}
-
-# .test "Controller 1 Type" -> what the guest should plug into each port. The
-# frontend never learns what any of these mean; it just ships the setting.
-config_for_test() { # controller1-type -> config template path
-	case "$1" in
-		ArkanoidNES)     config_variant arkanoidNES arkanoidNES none ;;
-		ArkanoidFamicom) config_variant arkanoidFamicom arkanoidFamicom none ;;
-		FourScore1)      config_variant fourscore fourscore fourscore ;;
-		*)               config_variant gamepad gamepad none ;;
-	esac
-}
+# Peripherals (Four Score, Arkanoid paddles) are carried in the movie's own sync
+# settings now, so every test runs from the same base config.
 
 rom_path_for() { # "roms/<name>" -> absolute path or empty
 	local name="${1#roms/}"
@@ -199,7 +166,7 @@ rom_path_for() { # "roms/<name>" -> absolute path or empty
 
 # ---------- build the job list ----------
 declare -a results=() # lines: "name|RESULT|detail"
-declare -a job_names=() job_roms=() job_cfgs=() job_c1s=() job_c2s=() job_sols=()
+declare -a job_names=() job_roms=() job_movies=()
 
 for test_file in "$tests_dir"/*.test; do
 	name="$(basename "$test_file" .test)"
@@ -234,17 +201,16 @@ EOF
 		results+=("$name|SKIP|ROM SHA1 mismatch")
 		continue
 	fi
-	if [ "$record" -eq 1 ] && [ "$skip_existing" -eq 1 ] && [ -f "$golden_dir/$name.$mode.ram.bin" ]; then
+	if [ "$record" -eq 1 ] && [ "$skip_existing" -eq 1 ] && [ -f "$golden_dir/$name.simple.ram.bin" ]; then
 		results+=("$name|RECORDED|already present (skipped)")
 		continue
 	fi
-	cfg_template="$(config_for_test "$c1")"
-	if [ -z "$cfg_template" ]; then
-		results+=("$name|SKIP|base config.ini not generated yet; rerun")
+	movie="$harness_dir/movies/$name.tas"
+	if [ ! -f "$movie" ]; then
+		results+=("$name|SKIP|no movie: run tools/make-movies.sh")
 		continue
 	fi
-	job_names+=("$name"); job_roms+=("$rom_path"); job_cfgs+=("$cfg_template")
-	job_c1s+=("$c1"); job_c2s+=("$c2"); job_sols+=("$tests_dir/$seq_file")
+	job_names+=("$name"); job_roms+=("$rom_path"); job_movies+=("$movie")
 done
 
 # ---------- run with up to $parallel concurrent EmuHawks ----------
@@ -253,26 +219,21 @@ declare -a run_names=() run_pids=() run_starts=() run_outs=() run_metas=()
 start_test_job() { # index into job_* arrays
 	local i="$1"
 	local name="${job_names[$i]}"
-	local out_file="$work_dir/$name.$mode.ram.bin"
-	local meta_file="$work_dir/$name.$mode.meta.txt"
+	local out_file="$work_dir/$name.simple.ram.bin"
+	local meta_file="$work_dir/$name.simple.meta.txt"
 	rm -f "$out_file" "$meta_file"
 
 	# private config + job file per instance (EmuHawk rewrites config on exit)
 	local cfg_run="$run_dir/config.$name.ini"
-	cp "${job_cfgs[$i]}" "$cfg_run" 2>/dev/null || true
+	cp "$config_file" "$cfg_run" 2>/dev/null || true
 	local job_file="$run_dir/job.$name.txt"
 	{
-		echo "sol=${job_sols[$i]}"
 		echo "out=$out_file"
 		echo "meta=$meta_file"
-		echo "controller1=${job_c1s[$i]}"
-		echo "controller2=${job_c2s[$i]}"
-		echo "mode=$mode"
-		echo "checkpoint=$checkpoint"
 	} > "$job_file"
 
 	( cd "$repo_root" && MINIHAWK_JOB="$job_file" exec mono "$emu_hawk" "--headless" \
-		"--config=$cfg_run" "--core=$core_package" "--lua=$replay_lua" \
+		"--config=$cfg_run" "--core=$core_package" "--movie=${job_movies[$i]}" "--lua=$play_lua" \
 		"${job_roms[$i]}" ) > "$run_dir/$name.log" 2>&1 &
 	run_names+=("$name"); run_pids+=($!); run_starts+=("$SECONDS")
 	run_outs+=("$out_file"); run_metas+=("$meta_file")
@@ -295,11 +256,11 @@ complete_test_job() { # slot index
 		return
 	fi
 	if [ "$record" -eq 1 ]; then
-		cp "$out_file" "$golden_dir/$name.$mode.ram.bin"
+		cp "$out_file" "$golden_dir/$name.simple.ram.bin"
 		results+=("$name|RECORDED|$frames frames in ${secs}s")
 		return
 	fi
-	local golden_file="$golden_dir/$name.$mode.ram.bin"
+	local golden_file="$golden_dir/$name.simple.ram.bin"
 	if [ ! -f "$golden_file" ]; then
 		results+=("$name|NOGOLDEN|")
 		return
@@ -349,6 +310,6 @@ while IFS='|' read -r name result detail; do
 	esac
 done < <(printf "%s\n" "${results[@]}" | sort)
 echo ""
-echo "$ok ok, $failed failed, $skipped skipped  (set: $set_name, mode: $mode)"
+echo "$ok ok, $failed failed, $skipped skipped  (set: $set_name)"
 [ "$failed" -gt 0 ] && exit 1
 exit 0

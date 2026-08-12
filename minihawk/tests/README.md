@@ -14,66 +14,79 @@ byte-for-byte is precisely the proof that sandboxing changed no emulation.
 The suite (`suite/*.test` + `.sol` input sequences) is a vendored snapshot of
 `tests/` from [TASEmulators/quickerNES](https://github.com/TASEmulators/quickerNES).
 
+## What this gate does and does not cover
+
+It covers the **frontend path**: the package loads through the real loader, input
+reaches the core through the real controller chain, and 45,000 frames later the
+RAM is what the native core produced.
+
+It does **not** test savestates. That property — the whole machine round-tripping
+through save/load around every frame, byte-identically — is proven directly and
+hundreds of times faster by [`../../waterbox/run-gate.sh`](../../waterbox), at
+the core level where it belongs.
+
 ## Which tests to run
 
 | set | contents | when |
 |---|---|---|
 | `free` (**default**) | tests whose roms are free to distribute and vendored in `suite/roms` | every run, and in CI — it needs nothing provisioned |
-| `full` | adds the commercial-rom tests, resolved from a local rom library | significant changes: the core, the guest ABI, the adapter, before a push |
+| `full` | adds the commercial-rom tests, resolved from a local rom library | before a release, and whenever the core, the guest ABI or the adapter changes |
 
 ```sh
-./run-level-b.sh                    # free set, simple mode
-./run-level-b.sh --set full         # the whole witness set
-./run-level-b.sh --mode rerecord    # per-frame savestate round-trip variant
+./run-level-b.sh                            # free set
+./run-level-b.sh --set full                 # the whole witness set
 ./run-level-b.sh --set full --parallel 26   # one instance per test, if you have the cores
-./run-level-b.sh --record           # (re)record goldens from the current build
-./run-level-b.sh --filter super     # subset by regex
+./run-level-b.sh --record                   # (re)record goldens from the current build
+./run-level-b.sh --filter super             # subset by regex
 ```
 
-`run-level-b.ps1` is the Windows equivalent (`-Set full`, `-Mode rerecord`, …);
-it runs instances on a hidden Windows desktop instead of Xvfb, and
-`hidden-run.ps1` is a standalone helper for one-off hidden runs.
-
-The free set is currently one movie (`sprilo.anyPercent`). The other free rom,
-`nova.nes`, is **rejected at load** by the core — "Unsupported mapper",
-identically in the native and waterboxed flavors, so that is faithful behaviour
-and not something this gate can cover. miniHawk's own synthetic witness
-(`tests/synth/run-witness.sh` there) is fully redistributable and covers the
-frontend contract; treat the two as complementary CI, and the `full` set as the
-determinism gate.
+`run-level-b.ps1` is the Windows equivalent (`-Set full`, …); it runs instances
+on a hidden Windows desktop instead of Xvfb, and `hidden-run.ps1` is a standalone
+helper for one-off hidden runs.
 
 ## How a test runs
 
-For each test: write a job file, launch EmuHawk with `--headless --lua=replay.lua`
-on a hidden display (no window appears), replay the `.sol` through the frontend
-input pipeline, and dump the final 2KB `RAM` domain. Up to `--parallel` of them
-run concurrently, each with private config/job files. `--headless` makes any
-modal dialog log its text and exit with code 64 instead of blocking invisibly.
+For each test: launch EmuHawk with `--headless --movie=<test>.tas`, play the
+movie to its end on a hidden display (no window appears), and dump the final 2KB
+`RAM` domain. Input comes from the **movie**, so the gate exercises the same path
+a user does — the movie session driving the controller chain — and nothing runs
+per frame in script. Up to `--parallel` instances run concurrently, each with
+private config/job files. `--headless` makes any modal dialog log its text and
+exit with code 64 instead of blocking invisibly.
 
-Ports (Four Score, Arkanoid paddles) are **user settings** under the waterbox
-package: the driver writes `port1`/`port2` into the config's sync settings, the
-adapter mounts them as JSON, and the guest reads them at Init. The frontend
-never learns what any of them mean.
+Movies are generated from the `.sol` sequences by `tools/make-movies.sh`, which
+uses the frontend's own `Bk2LogEntryGenerator` against the core's
+`ControllerDefinition` — so the mnemonic layout comes from the code that reads it
+back, not a hand-written guess. **Change the controller declaration in
+waterbox.config and the movies must be regenerated**; forget, and every test
+desyncs at once, which is the intended alarm. Free-set movies are committed, so
+CI needs no conversion step.
 
-Replay semantics that were required for byte-exact agreement with the native
-tester (each found the hard way):
+Ports (Four Score, Arkanoid paddles) travel in the movie's own `SyncSettings`,
+which is where they belong: with the input they apply to, rather than in a config
+file off to the side.
 
-- `client.reboot_core()` at script start — EmuHawk emulates one frame during
-  ROM load before Lua gains control.
+Things that were required for byte-exact agreement with the native tester, each
+found the hard way:
+
 - Console Reset/Power flags in `.sol` files are parsed but **not** applied — the
   native tester ignores them during replay (solarJetman has a reset).
-- `OpposingDirPolicy` must be `Allow` (2) in the config — Lua input passes
-  through the SOCD filter, and the movies use simultaneous L+R/U+D.
-- Paddle values go through `joypad.setaxis`, which pushes an axis into the
-  override adapter for the current frame. `joypad.setanalog` is a different
-  thing — a sticky autohold — and never reaches the core from a script.
+- `OpposingDirPolicy` must be `Allow` (2) in the config — input passes through
+  the SOCD filter, and the movies use simultaneous L+R/U+D.
+- A movie needs a `Core` header naming the core as the **registry** knows it
+  (`waterbox.config`'s `coreName`, e.g. `quickerNES`) — not the adapter's
+  `[PortedCore]` attribute, which is `Waterbox` for every waterbox core alike.
+  Without it, playback stops on a dialog, which headless turns into exit code 64.
+- Rewind is disabled in the harness config. A replay never rewinds, and for a
+  waterbox core a per-frame savestate costs more than the emulation.
 
 ## Timing
 
-Per-test wall clock is dominated by the frontend, not the core: the sandboxed
-core alone runs ~2,600 fps, the full frontend ~450. The per-test timeout
-defaults to 7200s because `superOffroad.anyPercent` is 182,180 frames and
-`nigelMansell.anyPercent` is 296,590.
+Wall clock is dominated by the frontend, not the core. With host servicing
+rate-limited in headless mode, a 45,472-frame movie replays in ~36s; the whole
+free set runs in well under a minute. The per-test timeout defaults to 7200s
+because `superOffroad.anyPercent` is 182,180 frames and `nigelMansell.anyPercent`
+is 296,590.
 
 Goldens live in `goldens/levelB/`. A run passes when every dump is
 byte-identical to its golden, and goldens must themselves match
@@ -81,7 +94,8 @@ byte-identical to its golden, and goldens must themselves match
 
 ## Witness set
 
-26 tests run of 31; exclusions and rationale are listed in the drivers'
-`excluded` list (mapper 5 disabled in the pinned fork, one rom the core rejects
-at load, one wrong local dump, two tests that start from a quickerNES-native
-`.state` and so are Level-A-only).
+26 tests of 31 run; exclusions and rationale are in the drivers' `excluded` list
+(mapper 5 disabled in the pinned fork, one wrong local rom dump, two tests that
+start from a quickerNES-native `.state` and so are Level-A-only).
+`novaTheSquirrel` was excluded until the core gained MMC1 banked PRG RAM; it is
+now part of the free set.

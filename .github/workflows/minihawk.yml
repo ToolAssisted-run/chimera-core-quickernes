@@ -91,8 +91,9 @@ jobs:
     # The other half: real movies replayed through the whole frontend (EmuHawk
     # headless under Mono + Xvfb, loading the package through miniHawk's generic
     # waterbox adapter), with the final RAM compared byte-for-byte against
-    # goldens that were recorded from the native core. Builds all of miniHawk, so
-    # it takes minutes; the core gate above gives fast feedback meanwhile.
+    # goldens that were recorded from the native core. Savestate faithfulness is
+    # NOT retested here - core-gate above proves it directly. Builds all of
+    # miniHawk, so it takes minutes; the core gate gives fast feedback meanwhile.
     name: frontend witness (free rom set)
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -136,13 +137,12 @@ jobs:
       - name: Build and install the waterbox core package
         run: ./waterbox/build-package.sh -r "$PWD/minihawk-checkout"
 
-      - name: Witness - free rom set, simple replay
+      # The free-set movies are committed, so nothing is converted here; if the
+      # controller declaration changed without regenerating them, every test
+      # desyncs and this fails loudly, which is the point.
+      - name: Witness - free rom set
         working-directory: ./minihawk/tests
         run: ./run-level-b.sh --minihawk-root "$GITHUB_WORKSPACE/minihawk-checkout"
-
-      - name: Witness - free rom set, per-frame savestate round-trip
-        working-directory: ./minihawk/tests
-        run: ./run-level-b.sh --minihawk-root "$GITHUB_WORKSPACE/minihawk-checkout" --mode rerecord
 
       - name: Upload witness work dir on failure
         if: failure()
