@@ -42,3 +42,4 @@ minihawk/obj/
 
 # witness harness scratch (per-run configs, dumps, logs)
 minihawk/tests/work/
+waterbox/bin/
