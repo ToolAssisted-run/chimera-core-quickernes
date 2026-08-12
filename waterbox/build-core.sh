@@ -34,13 +34,20 @@ gccver="$(gcc -dumpfullversion)"
 
 mkdir -p "$out/obj"
 
+# _QUICKERNES_ENABLE_TRACEBACK_SUPPORT turns on the core's per-instruction trace
+# hook, without which set_tracecb is bound but never fires (it is defined nowhere
+# else in the repo, so the native build's tracing is inert). It costs one
+# predictable branch per instruction and does not change emulation output - the
+# equivalence gate is re-run with it on.
+#
 # The guest flags: miniBox's frozen waterbox flags plus quickerNES's own
 # -fno-strict-aliasing (the core type-puns the cart header; without this the
 # iNES header is misparsed under -O2). __JAFFAR_COMMON_INLINE__ is normally
 # defined by extern/jaffarCommon/meson.build.
 cflags="-fvisibility=hidden -mcmodel=large -mstack-protector-guard=global \
 	-fno-pic -fno-pie -fcf-protection=none -O2 -DNDEBUG -std=c++20 \
-	-fno-exceptions -fno-rtti -fno-strict-aliasing"
+	-fno-exceptions -fno-rtti -fno-strict-aliasing \
+	-D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT"
 incs="-I$sr/include/c++/$gccver -I$sr/include/c++/$gccver/x86_64-linux-musl \
 	-I$mb/extern/emulibc -I$mb/source/guest/include -I$mb/extern/jsmn \
 	-I$root/source -I$root/source/quickerNES -I$root/source/quickerNES/core \
