@@ -1,27 +1,27 @@
-﻿# miniHawk core package
+# miniHawk core package
 
 This directory is the QuickerNES core package for
 [miniHawk](https://github.com/SergioMartin86/miniHawk) (the core-agnostic TAS
 frontend derived from BizHawk). It is the *entire* interface between this
-emulator and that frontend â€” miniHawk itself contains no quickerNES-specific
+emulator and that frontend — miniHawk itself contains no quickerNES-specific
 code.
 
 Contents:
 
-- `source/` â€” the managed adapter (`ICoreFactory` + `IEmulator` implementation
+- `source/` — the managed adapter (`ICoreFactory` + `IEmulator` implementation
   and its NES-specific helpers: BootGod cart DB reader, virtual pad schemas,
   palettes)
-- `native/` â€” `bizinterface.cpp` (the C ABI the adapter P/Invokes) and a
+- `native/` — `bizinterface.cpp` (the C ABI the adapter P/Invokes) and a
   Makefile that builds `libquicknes` from this repository's core sources
-- `natives/` â€” prebuilt `libquicknes.dll` (MSVC) / `libquicknes.so` (gcc)
+- `natives/` — prebuilt `libquicknes.dll` (MSVC) / `libquicknes.so` (gcc)
   shipped in the package
-- `minihawk-core.json` â€” the package manifest (see miniHawk's core-author docs
+- `minihawk-core.json` — the package manifest (see miniHawk's core-author docs
   for the format)
-- `NesCarts.xml`, `palettes/`, `defctrl.json` â€” data bundled into the package
+- `NesCarts.xml`, `palettes/`, `defctrl.json` — data bundled into the package
   (cart DB, NES palettes, default input bindings)
-- `lua/` â€” NES-specific Lua: game helper scripts, the `nes.*` API stub, and
-  the recovered frontend-side API implementation (see `lua/README.md`)
-- `build-package.ps1` â€” builds the adapter against the miniHawk contract DLLs
+- `lua/` — the `nes.*` Lua API: editor annotations plus the recovered
+  frontend-side implementation (see `lua/README.md`)
+- `build-package.ps1` — builds the adapter against the miniHawk contract DLLs
   and installs `quickernes.zip` into miniHawk's `build/Cores/`
 
 ## Building
@@ -44,14 +44,14 @@ miniHawk loads the package explicitly: `File > Open Core...` in the UI, or
 See [LICENSE](LICENSE) in this directory. In short:
 
 - `source/` (the managed adapter), `native/bizinterface.cpp`, and
-  `defctrl.json` are **derived from BizHawk** â€” original work by the
-  **BizHawk team**, MIT License â€” with subsequent modifications for
+  `defctrl.json` are **derived from BizHawk** — original work by the
+  **BizHawk team**, MIT License — with subsequent modifications for
   quickerNES/miniHawk under the same license.
 - The quickerNES core itself is **GPL v2** (repository root LICENSE), so the
   compiled `libquicknes` binaries and the assembled `quickernes.zip` package
   are distributed under GPL v2 as combined works.
 - `NesCarts.xml` is BootGod's NES Cart Database (NesDev community);
-  `palettes/` are NES palettes by various emulator authors â€” both
+  `palettes/` are NES palettes by various emulator authors — both
   redistributed as previously shipped with BizHawk.
 
 ## Determinism obligations
