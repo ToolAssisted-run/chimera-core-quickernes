@@ -1,33 +1,152 @@
-name: Build miniHawk native core
+name: miniHawk waterbox core
+
+# The core as miniHawk actually ships it: a sandboxed core.wbx package.
+#
+# Both jobs run only over roms that are FREE TO DISTRIBUTE and vendored in this
+# repository, so they need nothing provisioned and can run on public runners.
+# The full witness set replays commercial-rom movies and is a pre-release gate
+# run locally (minihawk/tests/run-level-b.sh --set full).
 
 on:
   pull_request:
     branches: [ "main" ]
-    paths: [ "minihawk/**", "source/**" ]
+    paths: [ "waterbox/**", "minihawk/**", "source/**", ".github/workflows/minihawk.yml" ]
   push:
     branches: [ "main" ]
-    paths: [ "minihawk/**", "source/**" ]
+    paths: [ "waterbox/**", "minihawk/**", "source/**", ".github/workflows/minihawk.yml" ]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  MINIHAWK_REF: minihawk
+
 jobs:
 
-  build-minihawk-native:
+  core-gate:
+    # The fast half: the sandboxed core must emulate byte-identically to the
+    # original shared library, and survive a savestate round-trip around every
+    # frame. No .NET, Mono or X involved.
+    name: core gate (equivalence + savestates)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-    - uses: actions/checkout@v6
-      with:
-        submodules: recursive
-    - name: Building libquicknes (Linux)
-      working-directory: ./minihawk/native
-      run: make -j4; make install
-    - name: Upload native core
-      uses: actions/upload-artifact@v7
-      with:
-        name: libquicknes
-        path: |
-          minihawk/natives/libquicknes.so
-        retention-days: 90
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Check out miniHawk (for the miniBox waterbox host and toolchain)
+        uses: actions/checkout@v6
+        with:
+          repository: SergioMartin86/miniHawk
+          ref: ${{ env.MINIHAWK_REF }}
+          path: minihawk-checkout
+          submodules: false
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends meson ninja-build build-essential python3
+
+      - name: Check out miniBox
+        working-directory: minihawk-checkout
+        run: git submodule update --init extern/miniBox
+
+      # The C++ guest toolchain (musl + libstdc++ built for the sandbox) is the
+      # slow part of the build and changes only when miniBox does.
+      - name: Cache the guest toolchain
+        uses: actions/cache@v4
+        with:
+          path: minihawk-checkout/extern/miniBox/build/meson-cpp
+          key: guest-cpp-${{ runner.os }}-${{ hashFiles('minihawk-checkout/extern/miniBox/.git') }}-${{ hashFiles('minihawk-checkout/extern/miniBox/meson.build') }}
+
+      - name: Build miniBox (host + C++ guest toolchain)
+        run: |
+          mb="$PWD/minihawk-checkout/extern/miniBox"
+          [ -f "$mb/build/meson-cpp/build.ninja" ] || meson setup "$mb/build/meson-cpp" "$mb" -Dguest_cpp=true
+          meson compile -C "$mb/build/meson-cpp"
+
+      - name: Build the native reference (libquicknes)
+        working-directory: ./minihawk/native
+        run: make -j$(nproc)
+
+      - name: Build the waterbox core package
+        run: ./waterbox/build-core.sh -m "$PWD/minihawk-checkout/extern/miniBox"
+
+      - name: Core gate over the free-to-distribute roms
+        run: ./waterbox/run-gate.sh
+
+      - name: Upload core.wbx
+        uses: actions/upload-artifact@v7
+        with:
+          name: core-wbx
+          path: |
+            waterbox/bin/core.wbx
+            waterbox/waterbox.config
+          retention-days: 90
+
+  frontend-witness:
+    # The other half: real movies replayed through the whole frontend (EmuHawk
+    # headless under Mono + Xvfb, loading the package through miniHawk's generic
+    # waterbox adapter), with the final RAM compared byte-for-byte against
+    # goldens that were recorded from the native core. Builds all of miniHawk, so
+    # it takes minutes; the core gate above gives fast feedback meanwhile.
+    name: frontend witness (free rom set)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Check out miniHawk
+        uses: actions/checkout@v6
+        with:
+          repository: SergioMartin86/miniHawk
+          ref: ${{ env.MINIHAWK_REF }}
+          path: minihawk-checkout
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            meson ninja-build build-essential cmake pkg-config python3 \
+            mono-complete xvfb \
+            libgl1-mesa-dev libx11-dev libxext-dev libasound2-dev
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0'
+
+      - name: Build miniHawk native dependencies
+        working-directory: minihawk-checkout
+        run: |
+          meson setup build/meson-linux --prefix "$PWD/build" --libdir dll
+          meson compile -C build/meson-linux
+          meson install -C build/meson-linux
+
+      - name: Build the miniHawk solution
+        working-directory: minihawk-checkout
+        run: dotnet build source/BizHawk.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
+
+      - name: Build and install the waterbox core package
+        run: ./waterbox/build-package.sh -r "$PWD/minihawk-checkout"
+
+      - name: Witness - free rom set, simple replay
+        working-directory: ./minihawk/tests
+        run: ./run-level-b.sh --minihawk-root "$GITHUB_WORKSPACE/minihawk-checkout"
+
+      - name: Witness - free rom set, per-frame savestate round-trip
+        working-directory: ./minihawk/tests
+        run: ./run-level-b.sh --minihawk-root "$GITHUB_WORKSPACE/minihawk-checkout" --mode rerecord
+
+      - name: Upload witness work dir on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-witness-work
+          path: minihawk/tests/work/

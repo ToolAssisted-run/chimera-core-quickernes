@@ -44,7 +44,6 @@ openSourceTestSet = [
 # fixed. Remove entries here to re-enable them.
 disabledTestSet = [
   'castlevania3.playaround.test',        # segfault: mapper 5 (MMC5) not registered
-  'novaTheSquirrel.anyPercent.test',     # segfault (works on quickNES)
   'ironSword.anyPercent.test',           # hash mismatch vs quickNES
   'rcProAmII.race1.test',                # hash mismatch vs quickNES
   'superOffroad.anyPercent.test',        # hash mismatch vs quickNES
