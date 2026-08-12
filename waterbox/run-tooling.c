@@ -32,7 +32,7 @@ static intptr_t mem_reader(uintptr_t ud, uint8_t *d, uintptr_t s)
 }
 
 typedef int (*intfn)(void);
-typedef void (*framefn)(uint32_t);
+typedef void (*framefn)(uint64_t);
 typedef uintptr_t (*ptrfn)(void);
 typedef uintptr_t (*ptrfn_i)(int);
 typedef int (*intfn_i)(int);
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 	FILE *wf = fopen(argv[1], "rb");
 	if (!wf) { fprintf(stderr, "cannot open %s\n", argv[1]); return 1; }
 
-	mb_memory_layout_template layout = { 64u << 20, 64u << 20, 16u << 20, 64u << 20, 64u << 20 };
+	mb_memory_layout_template layout = { 16u << 20, 16u << 20, 4u << 20, 16u << 20, 16u << 20 };
 	freader fr = { wf };
 	mb_return r;
 	wbx_create_host(&layout, "core.wbx", file_read, (uintptr_t)&fr, &r);

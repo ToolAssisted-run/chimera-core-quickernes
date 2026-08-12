@@ -32,8 +32,22 @@ gccver="$(gcc -dumpfullversion)"
 	exit 1
 }
 
+# The link globs $out/obj/*.o, so a stale object from a renamed or removed source
+# would be linked in silently (or collide). Start from an empty object dir.
+rm -rf "$out/obj"
 mkdir -p "$out/obj"
 
+# The core is a pile of #ifdefs: whole features compile out when their macro is
+# absent, silently. These MUST match minihawk/native/Makefile, which is what the
+# equivalence gate and the goldens were produced with:
+#   _QUICKERNES_SUPPORT_ARKANOID_INPUTS - without it the paddle path (and the
+#     whole arkanoid branch of read_io) does not exist, so an Arkanoid movie
+#     desyncs while every joypad game still passes.
+#   _QUICKERNES_DETECT_JOYPAD_READS - without it joypad_read_count never moves,
+#     so InputWasRead always says "not read" and EVERY frame looks like a lag
+#     frame to the frontend.
+# (_QUICKERNES_PRINT_CART_INFO is deliberately NOT set: it only prints.)
+#
 # _QUICKERNES_ENABLE_TRACEBACK_SUPPORT turns on the core's per-instruction trace
 # hook, without which set_tracecb is bound but never fires (it is defined nowhere
 # else in the repo, so the native build's tracing is inert). It costs one
@@ -47,7 +61,8 @@ mkdir -p "$out/obj"
 cflags="-fvisibility=hidden -mcmodel=large -mstack-protector-guard=global \
 	-fno-pic -fno-pie -fcf-protection=none -O2 -DNDEBUG -std=c++20 \
 	-fno-exceptions -fno-rtti -fno-strict-aliasing \
-	-D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT"
+	-D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT \
+	-D_QUICKERNES_SUPPORT_ARKANOID_INPUTS -D_QUICKERNES_DETECT_JOYPAD_READS"
 incs="-I$sr/include/c++/$gccver -I$sr/include/c++/$gccver/x86_64-linux-musl \
 	-I$mb/extern/emulibc -I$mb/source/guest/include -I$mb/extern/jsmn \
 	-I$root/source -I$root/source/quickerNES -I$root/source/quickerNES/core \
@@ -56,7 +71,7 @@ jaffar='-D__JAFFAR_COMMON_INLINE__=__attribute__((__used__)) inline'
 specs="-specs $sr/lib/musl-gcc.specs"
 
 # guest objects: the unmodified core + the waterbox ABI layer
-srcs="$(find "$root/source/quickerNES" -name '*.cpp' | sort) $here/quickernes_wbx.cpp"
+srcs="$(find "$root/source/quickerNES" -name '*.cpp' | sort) $here/waterbox.cpp"
 for f in $srcs; do
 	o="$out/obj/$(echo "${f#$root/}" | tr '/' '_').o"
 	g++ $specs $cflags $incs "$jaffar" -c -o "$o" "$f"

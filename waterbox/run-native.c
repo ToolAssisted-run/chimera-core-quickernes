@@ -24,6 +24,16 @@ static uint64_t fnv(uint64_t h, const void *p, size_t n)
 
 typedef struct { uint8_t red, green, blue; } rgb_t;
 
+/* A deterministic per-frame button pattern, identical in both drivers, so the
+ * gate compares the INPUT path too rather than 300 frames of nothing pressed.
+ * Bit order is the NES joypad's own: A,B,Select,Start,Up,Down,Left,Right. */
+static uint8_t padForFrame(long frame)
+{
+	uint64_t x = (uint64_t)frame * 6364136223846793005ULL + 1442695040888963407ULL;
+	x ^= x >> 33;
+	return (uint8_t)(x & 0xFF);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 4) { fprintf(stderr, "usage: run-native <libquicknes.so> <rom.nes> <frames>\n"); return 2; }
@@ -40,6 +50,7 @@ int main(int argc, char **argv)
 	int (*qn_read_audio)(void *, short *, int) = dlsym(lib, "qn_read_audio");
 	const rgb_t *(*qn_get_default_colors)(void) = dlsym(lib, "qn_get_default_colors");
 	int (*qn_get_memory_area)(void *, int, const void **, int *, int *, const char **) = dlsym(lib, "qn_get_memory_area");
+	int (*qn_get_joypad_read_count)(void *) = dlsym(lib, "qn_get_joypad_read_count");
 	if (!qn_new || !qn_loadines || !qn_emulate_frame || !qn_blit || !qn_read_audio
 		|| !qn_get_default_colors || !qn_get_memory_area) { fprintf(stderr, "missing qn_* symbols\n"); return 1; }
 
@@ -65,17 +76,22 @@ int main(int argc, char **argv)
 	static int32_t video[256 * 240];
 	static short audio[4096];
 	uint64_t vh = 0, ah = 0;
+	long lag = 0;
 	for (long i = 0; i < frames; i++) {
-		qn_emulate_frame(e, 0, 0, 0, 0, 0);
+		/* controller type 1 = standard joypad; the unused high bits of a latched
+		 * pad read back as 1s, which is what the 0xFFFFFF00 prefix is. */
+		qn_emulate_frame(e, 0xFFFFFF00u | padForFrame(i), 0, 0, 0, 1);
 		qn_blit(e, video, palette, 0, 0, 0, 0);
 		int samples = qn_read_audio(e, audio, 4096);
 		vh = fnv(vh, video, sizeof video);
 		ah = fnv(ah, audio, (size_t)samples * 2);
+		if (qn_get_joypad_read_count && qn_get_joypad_read_count(e) == 0) lag++;
 	}
 
 	printf("frames=%ld\n", frames);
 	printf("videoHash=%016llx\n", (unsigned long long)vh);
 	printf("audioHash=%016llx\n", (unsigned long long)ah);
+	printf("lagFrames=%ld\n", lag);
 	for (int i = 0; i < 32; i++) {
 		const void *data; int size, writable; const char *name;
 		if (!qn_get_memory_area(e, i, &data, &size, &writable, &name)) break;

@@ -38,8 +38,73 @@ namespace
 	int16_t g_audio[MaxSamplesPerFrame];
 	int g_audioSamples = 0;
 	uint32_t g_palette[512];
-	int g_lastJoypadReadCount = 0;
 	int g_joypadReadThisFrame = 0;
+
+	/* ---- controller ports ----
+	 * What is plugged into each port is a machine-shaping choice, so it arrives
+	 * as a user setting (mounted "settings" JSON, read at Init) rather than being
+	 * baked into the package. The frontend never learns what any of it means: it
+	 * ships the setting through and sends the button mask and axis values the
+	 * package declares. */
+	enum PortMode
+	{
+		portNone = 0,
+		portGamepad,
+		portFourScore,
+		portArkanoidNES,
+		portArkanoidFamicom,
+	};
+
+	PortMode g_port1 = portGamepad;
+	PortMode g_port2 = portNone;
+	quickerNES::Core::controllerType_t g_controllerType = quickerNES::Core::controllerType_t::joypad_t;
+	int g_axis[2] = { 80, 80 }; // paddle positions, neutral per waterbox.config
+
+	PortMode parsePort(const char *key, PortMode dflt)
+	{
+		char buf[32];
+		if (!wbx_setting_str(key, buf, sizeof buf)) return dflt;
+		if (!strcmp(buf, "none"))            return portNone;
+		if (!strcmp(buf, "gamepad"))         return portGamepad;
+		if (!strcmp(buf, "fourscore"))       return portFourScore;
+		if (!strcmp(buf, "arkanoidNES"))     return portArkanoidNES;
+		if (!strcmp(buf, "arkanoidFamicom")) return portArkanoidFamicom;
+		return dflt;
+	}
+
+	/* A standard joypad latches 8 button bits; everything above them reads back as
+	 * 1s (open bus on the real console), which is what the 0xFFFFFF00 prefix is.
+	 * An unplugged port latches 0. Button order is the NES joypad's own -
+	 * A,B,Select,Start,Up,Down,Left,Right - and waterbox.config declares the
+	 * buttons in that same order, so a byte of the mask passes straight through. */
+	uint32_t packGamepad(uint64_t input, int shift)
+	{
+		return 0xFFFFFF00u | (uint32_t)((input >> shift) & 0xFF);
+	}
+
+	/* The Four Score multiplexes two pads per port and appends a signature the
+	 * game uses to detect it: after the 16 button bits, port 1 reports 0b1000 and
+	 * port 2 reports 0b0100. */
+	uint32_t packFourScore(uint64_t input, int shiftNear, int shiftFar, uint32_t signature)
+	{
+		return signature
+			| (uint32_t)((input >> shiftNear) & 0xFF)
+			| ((uint32_t)((input >> shiftFar) & 0xFF) << 8);
+	}
+
+	/* The Arkanoid paddle reports its position as a serial bit stream, relative to
+	 * a calibration point and bit-reversed. See
+	 * https://www.nesdev.org/wiki/Arkanoid_controller; 0xAB is NesHawk's
+	 * calibration, kept identical so movies agree across emulators. */
+	uint32_t arkanoidLatch(uint8_t position)
+	{
+		const uint8_t centeringPotValue = 0xAB;
+		const uint8_t relative = (uint8_t)(centeringPotValue - position);
+		uint32_t latch = 0;
+		for (int bit = 0; bit < 8; bit++)
+			if (relative & (1u << (7 - bit))) latch |= 1u << bit;
+		return latch;
+	}
 
 	/* The cartridge-dependent memory map, mirroring the native adapter's
 	 * qn_get_memory_area (minihawk/native/bizinterface.cpp) so both flavors
@@ -51,7 +116,7 @@ namespace
 		switch (which)
 		{
 			case 0: *data = g_emu->get_low_mem();   *size = (int)g_emu->low_mem_size;      *name = "RAM";                return true;
-			case 1: *data = g_emu->high_mem();      *size = (int)g_emu->high_mem_size;     *name = "WRAM";               return true;
+			case 1: *data = g_emu->high_mem();      *size = (int)g_emu->get_high_mem_size(); *name = "WRAM";             return true;
 			case 2: *data = g_emu->chr_mem();       *size = (int)g_emu->chr_size();        *name = "CHR";                return true;
 			case 3: *data = g_emu->nametable_mem(); *size = (int)g_emu->nametable_size();  *name = "CIRAM (nametables)"; return true;
 			case 4: *data = g_emu->cart()->prg();   *size = (int)g_emu->cart()->prg_size();*name = "PRG ROM";            return true;
@@ -112,24 +177,78 @@ ECL_EXPORT int Init(void)
 			| ((uint32_t)colors[i].green << 8) | (uint32_t)colors[i].blue;
 	}
 
-	g_lastJoypadReadCount = g_emu->get_joypad_read_count();
+	// Ports are user settings; they decide both how the button mask is packed and
+	// which peripheral protocol the machine speaks.
+	g_port1 = parsePort("port1", portGamepad);
+	g_port2 = parsePort("port2", portNone);
+	g_controllerType = quickerNES::Core::controllerType_t::none_t;
+	if (g_port2 == portGamepad || g_port2 == portFourScore)
+		g_controllerType = quickerNES::Core::controllerType_t::joypad_t;
+	// port 1 wins: an Arkanoid there sets the protocol for the whole machine
+	if (g_port1 == portGamepad || g_port1 == portFourScore)
+		g_controllerType = quickerNES::Core::controllerType_t::joypad_t;
+	else if (g_port1 == portArkanoidNES)
+		g_controllerType = quickerNES::Core::controllerType_t::arkanoidNES_t;
+	else if (g_port1 == portArkanoidFamicom)
+		g_controllerType = quickerNES::Core::controllerType_t::arkanoidFamicom_t;
+
 	return 1;
 }
 
-/* Input bit layout must match waterbox.config's input.buttons order:
- * A, B, Select, Start, Up, Down, Left, Right - which is also the NES joypad's
- * own bit order, so the low byte passes straight through. Bits 8..15 are P2. */
-ECL_EXPORT void FrameAdvance(uint32_t input)
+/* Analog controls can't ride in the button mask; the host pushes each declared
+ * axis here just before the frame it belongs to. Index order is
+ * waterbox.config's input.axes: 0 = P2 Paddle, 1 = P3 Paddle. */
+ECL_EXPORT void SetAxis(int index, int value)
 {
-	const uint32_t pad1 = input & 0xFF;
-	const uint32_t pad2 = (input >> 8) & 0xFF;
+	if (index >= 0 && index < 2) g_axis[index] = value;
+}
 
-	g_emu->emulate_frame(pad1, pad2, 0, 0);
+/* Input bit layout must match waterbox.config's input.buttons order:
+ * bits  0-7  P1 A,B,Select,Start,Up,Down,Left,Right
+ * bits  8-15 P2, 16-23 P3, 24-31 P4 (same order within each byte)
+ * bit  32    P2 Fire (Arkanoid NES), bit 33 P3 Fire (Arkanoid Famicom)
+ * Which of those the machine actually sees depends on the port settings - the
+ * declaration is the union of every supported peripheral, since the frontend
+ * builds one controller definition per package. */
+ECL_EXPORT void FrameAdvance(uint64_t input)
+{
+	uint32_t pad1 = 0, pad2 = 0;
+	uint8_t arkPosition = 0, arkFire = 0;
 
-	// Lag detection: a frame that never polled the joypad is a lag frame.
-	const int reads = g_emu->get_joypad_read_count();
-	g_joypadReadThisFrame = (reads != g_lastJoypadReadCount);
-	g_lastJoypadReadCount = reads;
+	switch (g_port1)
+	{
+		case portGamepad:
+		case portArkanoidFamicom: pad1 = packGamepad(input, 0); break;
+		case portFourScore:       pad1 = packFourScore(input, 0, 16, 0xFF080000u); break;
+		default: break; // arkanoidNES occupies the port; nothing to latch
+	}
+	switch (g_port2)
+	{
+		case portGamepad:   pad2 = packGamepad(input, 8); break;
+		case portFourScore: pad2 = packFourScore(input, 8, 24, 0xFF040000u); break;
+		default: break;
+	}
+	if (g_port1 == portArkanoidNES)
+	{
+		arkPosition = (uint8_t)g_axis[0];
+		arkFire = (input >> 32) & 1;
+	}
+	else if (g_port1 == portArkanoidFamicom)
+	{
+		arkPosition = (uint8_t)g_axis[1];
+		arkFire = (input >> 33) & 1;
+	}
+
+	g_emu->setControllerType(g_controllerType);
+	const uint32_t latch = (g_controllerType == quickerNES::Core::controllerType_t::arkanoidNES_t
+		|| g_controllerType == quickerNES::Core::controllerType_t::arkanoidFamicom_t)
+		? arkanoidLatch(arkPosition) : 0;
+	g_emu->emulate_frame(pad1, pad2, latch, arkFire);
+
+	// Lag detection: a frame that never polled the joypad is a lag frame. The
+	// counter is per-frame - emulate_frame zeroes it - so the test is against
+	// zero, not against the previous frame's value.
+	g_joypadReadThisFrame = (g_emu->get_joypad_read_count() != 0);
 
 	// Video: map the paletted frame into BGRA.
 	const int pitch = g_emu->frame().pitch;

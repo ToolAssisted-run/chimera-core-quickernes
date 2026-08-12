@@ -44,8 +44,18 @@ static intptr_t mem_read(uintptr_t ud, uint8_t *d, uintptr_t n)
 	memcpy(d, m->b + m->pos, n); m->pos += n; return (intptr_t)n;
 }
 
+/* A deterministic per-frame button pattern, identical in both drivers, so the
+ * gate compares the INPUT path too rather than 300 frames of nothing pressed.
+ * Bit order is the NES joypad's own: A,B,Select,Start,Up,Down,Left,Right. */
+static uint8_t padForFrame(long frame)
+{
+	uint64_t x = (uint64_t)frame * 6364136223846793005ULL + 1442695040888963407ULL;
+	x ^= x >> 33;
+	return (uint8_t)(x & 0xFF);
+}
+
 typedef int (*intfn)(void);
-typedef void (*framefn)(uint32_t);
+typedef void (*framefn)(uint64_t);
 typedef uintptr_t (*ptrfn)(void);
 typedef uintptr_t (*ptrfn_i)(int);
 typedef int (*intfn_i)(int);
@@ -84,8 +94,9 @@ int main(int argc, char **argv)
 	FILE *wf = fopen(wbxPath, "rb");
 	if (!wf) { fprintf(stderr, "cannot open %s\n", wbxPath); return 1; }
 
-	/* an NES core needs more room than the synth toy: PRG/CHR plus the emulator */
-	mb_memory_layout_template layout = { 64u << 20, 64u << 20, 16u << 20, 64u << 20, 64u << 20 };
+	/* Sized to the core's needs (see waterbox.config): a savestate costs work
+	 * proportional to the declared layout, so an oversized one is pure per-frame cost. */
+	mb_memory_layout_template layout = { 16u << 20, 16u << 20, 4u << 20, 16u << 20, 16u << 20 };
 	freader fr = { wf };
 	mb_return r;
 	wbx_create_host(&layout, "core.wbx", file_read, (uintptr_t)&fr, &r);
@@ -105,6 +116,7 @@ int main(int argc, char **argv)
 	ptrfn GetVideoBgra = (ptrfn)proc(h, "GetVideoBgra");
 	ptrfn GetAudio = (ptrfn)proc(h, "GetAudio");
 	intfn GetAudioSampleCount = (intfn)proc(h, "GetAudioSampleCount");
+	intfn InputWasRead = (intfn)proc(h, "InputWasRead");
 	intfn GetMemoryDomainCount = (intfn)proc(h, "GetMemoryDomainCount");
 	ptrfn_i GetMemoryDomainName = (ptrfn_i)proc(h, "GetMemoryDomainName");
 	ptrfn_i GetMemoryDomainPtr = (ptrfn_i)proc(h, "GetMemoryDomainPtr");
@@ -126,23 +138,33 @@ int main(int argc, char **argv)
 	wbx_activate_host(h, &r);
 
 	uint64_t vh = 0, ah = 0;
+	long lag = 0;
 	membuf st = {0};
 	for (long f = 0; f < frames; f++) {
 		if (rerecord) {
+			/* No deactivate/activate bracket: the host activates itself for the
+			 * duration and restores what it found. Bracketing it unmaps and remaps
+			 * the whole guest arena four times per frame, which for a rerecord
+			 * replay costs far more than the state itself. */
 			st.len = 0;
-			wbx_deactivate_host(h, &r); wbx_save_state(h, mem_write, (uintptr_t)&st, &r); wbx_activate_host(h, &r);
+			wbx_save_state(h, mem_write, (uintptr_t)&st, &r);
 			st.pos = 0;
-			wbx_deactivate_host(h, &r); wbx_load_state(h, mem_read, (uintptr_t)&st, &r); wbx_activate_host(h, &r);
+			wbx_load_state(h, mem_read, (uintptr_t)&st, &r);
 			if (r.error_message[0]) { fprintf(stderr, "rerecord: %s\n", r.error_message); return 1; }
 		}
-		FrameAdvance(0);
+		/* the guest does its own packing from this mask - see waterbox.cpp */
+		FrameAdvance((uint64_t)padForFrame(f));
 		vh = fnv(vh, (const void *)GetVideoBgra(), 256 * 240 * 4);
 		ah = fnv(ah, (const void *)GetAudio(), (size_t)GetAudioSampleCount() * 2);
+		/* lag is emulation-visible state too: a build with joypad-read detection
+		 * compiled out reports every frame as lag, and RAM alone never notices */
+		if (!InputWasRead()) lag++;
 	}
 
 	printf("frames=%ld\n", frames);
 	printf("videoHash=%016llx\n", (unsigned long long)vh);
 	printf("audioHash=%016llx\n", (unsigned long long)ah);
+	printf("lagFrames=%ld\n", lag);
 	for (int i = 0; i < nd; i++) {
 		uint64_t dh = fnv(0, (const void *)GetMemoryDomainPtr(i), (size_t)GetMemoryDomainSize(i));
 		printf("domain[%s]=%016llx\n", (const char *)GetMemoryDomainName(i), (unsigned long long)dh);
