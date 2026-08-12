@@ -75,7 +75,9 @@ echo "built $out/core.wbx"
 gcc -O2 -Wall -I"$mb/source/host" -o "$out/run-wbx" "$here/run-wbx.c" \
 	"$mbuild/source/host/libminiboxhost.so" -Wl,-rpath,"$mbuild/source/host"
 gcc -O2 -Wall -o "$out/run-native" "$here/run-native.c" -ldl
-echo "built $out/run-wbx and $out/run-native"
+gcc -O2 -Wall -I"$mb/source/host" -o "$out/run-tooling" "$here/run-tooling.c" \
+	"$mbuild/source/host/libminiboxhost.so" -Wl,-rpath,"$mbuild/source/host"
+echo "built $out/run-wbx, $out/run-native and $out/run-tooling"
 
 # the package the frontend loads: core.wbx (fixed name) + waterbox.config
 cp "$here/waterbox.config" "$out/waterbox.config"

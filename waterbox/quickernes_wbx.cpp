@@ -301,9 +301,13 @@ namespace
 	constexpr int kSurfaceCount = (int)(sizeof kSurfaces / sizeof kSurfaces[0]);
 
 	const char *const kRegNames[] = { "A", "X", "Y", "SP", "PC", "P" };
+	/* the host shows each register this wide, in hex digits = bits/4 */
+	const int kRegBits[] = { 8, 8, 8, 8, 16, 8 };
 	constexpr int kRegCount = 6;
 
 	const char *const kBusNames[] = { "PRG (CPU)", "PPU" };
+	/* 6502 address space; the PPU's is 14-bit (0x0000-0x3FFF) */
+	const int64_t kBusSizes[] = { 0x10000, 0x4000 };
 	constexpr int kBusCount = 2;
 
 	/* Trace ring buffer: the tracer runs inside the guest and appends NUL-
@@ -321,9 +325,11 @@ namespace
 		if (!g_traceEnabled) return;
 		// regs: A, X, Y, SP, PC, P (same order as get_regs)
 		// regs[6] is the opcode (see cpuFlat.cpp / cpuPaged.cpp)
+		// A tab splits the line into the host's two trace-logger columns:
+		// "what executed" on the left, "machine state" on the right.
 		char line[128];
 		int n = snprintf(line, sizeof line,
-			"PC:%04X  OP:%02X  A:%02X X:%02X Y:%02X SP:%02X P:%02X",
+			"PC:%04X  OP:%02X\tA:%02X X:%02X Y:%02X SP:%02X P:%02X",
 			regs[4] & 0xFFFF, regs[6] & 0xFF, regs[0] & 0xFF, regs[1] & 0xFF,
 			regs[2] & 0xFF, regs[3] & 0xFF, regs[5] & 0xFF);
 		if (n < 0) return;
@@ -352,6 +358,7 @@ ECL_EXPORT uint32_t *RenderSurface(int i)
 /* ---- cpu registers ---- */
 ECL_EXPORT int GetRegisterCount(void) { return kRegCount; }
 ECL_EXPORT const char *GetRegisterName(int i) { return (i >= 0 && i < kRegCount) ? kRegNames[i] : nullptr; }
+ECL_EXPORT int GetRegisterBits(int i) { return (i >= 0 && i < kRegCount) ? kRegBits[i] : 0; }
 ECL_EXPORT int64_t GetRegisterValue(int i)
 {
 	if (i < 0 || i >= kRegCount || !g_emu) return 0;
@@ -363,6 +370,7 @@ ECL_EXPORT int64_t GetRegisterValue(int i)
 /* ---- address buses (peek/poke beyond the memory domains) ---- */
 ECL_EXPORT int GetBusCount(void) { return kBusCount; }
 ECL_EXPORT const char *GetBusName(int i) { return (i >= 0 && i < kBusCount) ? kBusNames[i] : nullptr; }
+ECL_EXPORT int64_t GetBusSize(int i) { return (i >= 0 && i < kBusCount) ? kBusSizes[i] : 0; }
 ECL_EXPORT int PeekBus(int bus, int addr)
 {
 	if (!g_emu) return -1;
@@ -383,8 +391,11 @@ ECL_EXPORT void TraceSetEnabled(int on)
 	g_emu->set_tracecb(on ? traceCallback : nullptr);
 	if (!on) { g_traceUsed = 0; g_traceLines = 0; g_traceOverflow = 0; }
 }
+ECL_EXPORT const char *TraceGetHeader(void) { return "6502: PC, opcode | A, X, Y, SP, P"; }
 ECL_EXPORT int TraceGetLineCount(void) { return g_traceLines; }
 ECL_EXPORT char *TraceGetBuffer(void) { return g_traceBuf; }
+/* lets the host copy the whole frame's lines in one go instead of per line */
+ECL_EXPORT int TraceGetUsedBytes(void) { return g_traceUsed; }
 ECL_EXPORT int TraceGetOverflow(void) { return g_traceOverflow; }
 ECL_EXPORT void TraceClear(void) { g_traceUsed = 0; g_traceLines = 0; g_traceOverflow = 0; }
 
