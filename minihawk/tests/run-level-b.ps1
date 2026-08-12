@@ -150,9 +150,9 @@ $configFilePath = Join-Path $workDir "config.ini"
 if (Test-Path -LiteralPath $configFilePath) {
     $cfg = Get-Content -LiteralPath $configFilePath -Raw | ConvertFrom-Json
     $cfg.SoundEnabled = $false
-    # Lua input passes through the SOCD filter and the movies use simultaneous
-    # L+R/U+D, so opposing directions must be allowed (2).
-    $cfg.OpposingDirPolicy = 2
+    # NOT setting OpposingDirPolicy: the SOCD filter sits in the HOST input path,
+    # and movie playback bypasses it entirely. It mattered when this harness
+    # injected input from Lua.
     # GDI+ display: software-GL rendering wastes cores and cannot affect emulation
     $cfg.DispMethod = 1
     # Rewind captures a savestate EVERY frame. A replay never rewinds, so that is

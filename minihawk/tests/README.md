@@ -71,8 +71,12 @@ found the hard way:
 
 - Console Reset/Power flags in `.sol` files are parsed but **not** applied — the
   native tester ignores them during replay (solarJetman has a reset).
-- `OpposingDirPolicy` must be `Allow` (2) in the config — input passes through
-  the SOCD filter, and the movies use simultaneous L+R/U+D.
+- `OpposingDirPolicy` no longer matters, though it used to. The SOCD filter sits
+  in the *host* input path — what gets recorded — and movie playback goes from the
+  movie straight to the output controller, so it cannot touch replayed input.
+  Verified by replaying with the filter set to `Forbid`: the dump is unchanged.
+  It mattered when this harness injected input from Lua, because the movies use
+  simultaneous L+R/U+D.
 - A movie needs a `Core` header naming the core as the **registry** knows it
   (`waterbox.config`'s `coreName`, e.g. `quickerNES`) — not the adapter's
   `[PortedCore]` attribute, which is `Waterbox` for every waterbox core alike.

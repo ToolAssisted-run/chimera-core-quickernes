@@ -40,7 +40,7 @@ jobs:
       - name: Check out miniHawk (for the miniBox waterbox host and toolchain)
         uses: actions/checkout@v6
         with:
-          repository: SergioMartin86/miniHawk
+          repository: ToolAssisted-run/miniHawk
           ref: ${{ env.MINIHAWK_REF }}
           path: minihawk-checkout
           submodules: false
@@ -105,7 +105,7 @@ jobs:
       - name: Check out miniHawk
         uses: actions/checkout@v6
         with:
-          repository: SergioMartin86/miniHawk
+          repository: ToolAssisted-run/miniHawk
           ref: ${{ env.MINIHAWK_REF }}
           path: minihawk-checkout
           submodules: recursive

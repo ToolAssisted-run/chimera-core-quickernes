@@ -137,9 +137,11 @@ import io, json, sys
 path = sys.argv[1]
 cfg = json.load(io.open(path, encoding="utf-8-sig"))
 cfg["SoundEnabled"] = False
-# Lua input passes through the SOCD filter and the movies use simultaneous
-# L+R/U+D, so opposing directions must be allowed (2).
-cfg["OpposingDirPolicy"] = 2
+# NOT setting OpposingDirPolicy: the SOCD filter sits in the HOST input path
+# (what gets recorded), and movie playback goes straight from the movie to the
+# output controller, so it cannot touch replayed input. Verified by replaying
+# with the filter set to Forbid: the dump is unchanged. It mattered when this
+# harness injected input from Lua.
 # GDI+ display: on the hidden test display, OpenGL means Mesa's llvmpipe
 # software rasterizer - ~32 threads per instance, catastrophic under
 # parallel gates. Display method cannot affect emulation (pillar).
