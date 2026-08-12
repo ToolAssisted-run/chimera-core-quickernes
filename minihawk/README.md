@@ -1,63 +1,43 @@
-# miniHawk core package
+# miniHawk material (retired package format)
 
-This directory is the QuickerNES core package for
-[miniHawk](https://github.com/SergioMartin86/miniHawk) (the core-agnostic TAS
-frontend derived from BizHawk). It is the *entire* interface between this
-emulator and that frontend — miniHawk itself contains no quickerNES-specific
-code.
+This directory used to hold the QuickerNES core package for
+[miniHawk](https://github.com/SergioMartin86/miniHawk): a managed adapter DLL
+plus a prebuilt `libquicknes` native, described by a `minihawk-core.json`
+manifest.
 
-Contents:
+**That package format is gone.** miniHawk is waterbox-only: the only loadable
+package is `core.wbx` (a sandboxed guest binary) plus `waterbox.config`, built
+by [`../waterbox/`](../waterbox), which is where the live port lives. The
+adapter source, the manifest, the prebuilt natives and the package build scripts
+were deleted because nothing can load them any more; they remain in git history.
 
-- `source/` — the managed adapter (`ICoreFactory` + `IEmulator` implementation
-  and its NES-specific helpers: BootGod cart DB reader, virtual pad schemas,
-  palettes)
-- `native/` — `bizinterface.cpp` (the C ABI the adapter P/Invokes) and a
-  Makefile that builds `libquicknes` from this repository's core sources
-- `natives/` — prebuilt `libquicknes.dll` (MSVC) / `libquicknes.so` (gcc)
-  shipped in the package
-- `minihawk-core.json` — the package manifest (see miniHawk's core-author docs
-  for the format)
-- `NesCarts.xml`, `palettes/`, `defctrl.json` — data bundled into the package
-  (cart DB, NES palettes, default input bindings)
-- `lua/` — the `nes.*` Lua API: editor annotations plus the recovered
-  frontend-side implementation (see `lua/README.md`)
-- `build-package.ps1` — builds the adapter against the miniHawk contract DLLs
-  and installs `quickernes.zip` into miniHawk's `build/Cores/`
+What is still here, and why:
 
-## Building
-
-```powershell
-# prereq: a miniHawk checkout, solution built (dotnet build source/BizHawk.sln -c Release)
-./build-package.ps1                       # assumes ../BizHawk sibling checkout
-./build-package.ps1 -MiniHawkRoot <path>  # or point at it explicitly
-```
-
-The contract surface consumed here: `BizHawk.Emulation.Common.dll`,
-`BizHawk.Common.dll`, `BizHawk.BizInvoke.dll`, and the
-`BizHawk.SrcGen.SettingsUtil.dll` analyzer, all from `<MiniHawkRoot>/build/dll`.
-
-miniHawk loads the package explicitly: `File > Open Core...` in the UI, or
-`EmuHawk.exe --core=<path to quickernes.zip>` on the command line.
+- `native/` — `bizinterface.cpp` and its Makefile, which build `libquicknes`
+  as an ordinary shared library. **Still load-bearing**: this is the *native
+  reference* the waterbox equivalence gate runs against
+  (`waterbox/run-native.c` dlopens `native/libquicknes.so`), proving the
+  sandboxed core emulates identically to the unsandboxed one.
+- `lua/` — the `nes.*` Lua API (declarations plus the recovered frontend-side
+  implementation). Parked: a waterbox package has no way to ship a Lua API yet.
+  See [`lua/README.md`](lua/README.md).
+- `palettes/` — NES palettes. Parked for the same reason: no palette contract
+  in the waterbox package format yet.
+- `tests/` — the old frontend replay witness (movies, goldens, Xvfb/Mono
+  driver). It drives the retired package path and so does not run today, but
+  the movie suite and RAM goldens are reusable if the waterbox port ever gets a
+  frontend-level replay gate. The waterbox port's own gate lives in
+  `waterbox/` and needs none of this.
 
 ## Licensing and authorship
 
 See [LICENSE](LICENSE) in this directory. In short:
 
-- `source/` (the managed adapter), `native/bizinterface.cpp`, and
-  `defctrl.json` are **derived from BizHawk** — original work by the
+- `native/bizinterface.cpp` is **derived from BizHawk** — original work by the
   **BizHawk team**, MIT License — with subsequent modifications for
   quickerNES/miniHawk under the same license.
 - The quickerNES core itself is **GPL v2** (repository root LICENSE), so the
-  compiled `libquicknes` binaries and the assembled `quickernes.zip` package
-  are distributed under GPL v2 as combined works.
-- `NesCarts.xml` is BootGod's NES Cart Database (NesDev community);
-  `palettes/` are NES palettes by various emulator authors — both
-  redistributed as previously shipped with BizHawk.
-
-## Determinism obligations
-
-The package must be frame-exact deterministic and savestate round-trip clean.
-miniHawk's witness harness (`tests/` in that repo) replays a vendored
-snapshot of this repository's `tests/` suite through the full frontend stack
-and byte-compares final RAM against goldens, in both straight-replay and
-per-frame-savestate modes. Run it after any change here.
+  compiled `libquicknes` binaries are distributed under GPL v2 as combined
+  works.
+- `palettes/` are NES palettes by various emulator authors, redistributed as
+  previously shipped with BizHawk.

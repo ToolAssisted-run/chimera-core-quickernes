@@ -1,9 +1,0 @@
-{
-	"formatVersion": 1,
-	"name": "QuickerNES",
-	"assembly": "MiniHawk.QuickerNES.dll",
-	"factoryTypes": [ "BizHawk.Emulation.Cores.Consoles.Nintendo.QuickNES.QuickNesFactory" ],
-	"natives": [ "libquicknes.dll", "libquicknes.so" ],
-	"supersedesAssemblies": [ "BizHawk.Emulation.Cores" ],
-	"extensions": { ".nes": "NES" }
-}
