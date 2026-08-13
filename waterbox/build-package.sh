@@ -44,6 +44,9 @@ rm -rf "$staging"
 mkdir -p "$staging"
 cp "$out/core.wbx" "$staging/core.wbx"
 cp "$here/waterbox.config" "$staging/waterbox.config"
+# The default bindings for the controller this package declares. miniHawk ships none of its own -
+# the package that declares a controller says how it is played by default.
+cp "$here/default_keybinds.json" "$staging/default_keybinds.json"
 
 cores_dir="$minihawk_root/build/Cores"
 mkdir -p "$cores_dir"

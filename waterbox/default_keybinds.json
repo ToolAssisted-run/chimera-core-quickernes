@@ -1,0 +1,37 @@
+{
+	"_comment": [
+		"Default bindings for the controller this package declares, transcribed from BizHawk's",
+		"Assets/defctrl.json (its 'NES Controller' entries). The frontend ships no bindings of its",
+		"own: a package that declares a controller says how it is played by default, and miniHawk",
+		"uses that for a controller the user's config has never seen. The user's own bindings always",
+		"win, and the controller config's Defaults button comes back here.",
+		"Only player 1 is bound, which is BizHawk's own choice - a second pad is something you plug",
+		"in deliberately, and the keys it would take are the ones player 1 already has."
+	],
+	"AllTrollers": {
+		"NES Controller": {
+			"P1 Up": "Up, J1 POV1U, X1 DpadUp, X1 LStickUp",
+			"P1 Down": "Down, J1 POV1D, X1 DpadDown, X1 LStickDown",
+			"P1 Left": "Left, J1 POV1L, X1 DpadLeft, X1 LStickLeft",
+			"P1 Right": "Right, J1 POV1R, X1 DpadRight, X1 LStickRight",
+			"P1 Start": "Enter, J1 B10, X1 Start",
+			"P1 Select": "Space, J1 B9, X1 Back",
+			"P1 B": "Z, J1 B1, X1 X",
+			"P1 A": "X, J1 B2, X1 A",
+			"P2 Fire": "WMouse L",
+			"P3 Fire": "WMouse L"
+		}
+	},
+	"AllTrollersAutoFire": {
+		"NES Controller": {
+			"P1 B": "A",
+			"P1 A": "S"
+		}
+	},
+	"AllTrollersAnalog": {
+		"NES Controller": {
+			"P2 Paddle": { "Value": "WMouse X", "Mult": 1.0, "Deadzone": 0.0 },
+			"P3 Paddle": { "Value": "WMouse X", "Mult": 1.0, "Deadzone": 0.0 }
+		}
+	}
+}

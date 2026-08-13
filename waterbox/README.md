@@ -14,6 +14,12 @@ native library in a package; the retired format that had those is described in
 - `waterbox.config` — the static machine surface: video/audio geometry, the
   controller declaration (buttons and axes), the guest heap layout, and default
   values for the user settings the guest reads at Init.
+- `default_keybinds.json` — the default bindings for the controller this package
+  declares, transcribed from BizHawk's `Assets/defctrl.json`. miniHawk ships no
+  bindings of its own: a package that declares a controller says how it is played
+  by default, and the frontend uses that for a controller the user's config has
+  never seen. Player 1 only, plus the mouse for the arkanoid paddles and fire,
+  which is BizHawk's own choice.
 - `build-core.sh` — builds `core.wbx` plus the three drivers below.
 - `build-package.sh` — builds the package and installs it into a miniHawk
   checkout as `build/Cores/quickernes.zip`.
