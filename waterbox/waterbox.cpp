@@ -57,6 +57,23 @@ namespace
 
 	PortMode g_port1 = portGamepad;
 	PortMode g_port2 = portNone;
+
+	/* ---- live (non-sync) settings ----
+	 * Settings that do not shape the machine can change while the core runs, so
+	 * they cannot arrive through the mounted "settings" file, which is fixed for
+	 * the core's lifetime. The host writes fresh JSON into g_settingsBuf and calls
+	 * PutSettings; the buffer is ECL_INVISIBLE because settings are not machine
+	 * state and must not end up in savestates - a state from before a change would
+	 * otherwise restore the old value and make two identical runs differ. */
+	ECL_INVISIBLE char g_settingsBuf[4096];
+
+	void applyLiveSettings()
+	{
+		long limit = wbx_setting_long("spriteLimit", 8);
+		if (limit < 0) limit = 0;
+		if (limit > 64) limit = 64;
+		g_emu->set_sprite_mode((quickerNES::Emu::sprite_mode_t)limit);
+	}
 	quickerNES::Core::controllerType_t g_controllerType = quickerNES::Core::controllerType_t::joypad_t;
 	int g_axis[2] = { 80, 80 }; // paddle positions, neutral per waterbox.config
 
@@ -66,7 +83,7 @@ namespace
 		if (!wbx_setting_str(key, buf, sizeof buf)) return dflt;
 		if (!strcmp(buf, "none"))            return portNone;
 		if (!strcmp(buf, "gamepad"))         return portGamepad;
-		if (!strcmp(buf, "fourscore"))       return portFourScore;
+		if (!strcmp(buf, "fourScore"))       return portFourScore;
 		if (!strcmp(buf, "arkanoidNES"))     return portArkanoidNES;
 		if (!strcmp(buf, "arkanoidFamicom")) return portArkanoidFamicom;
 		return dflt;
@@ -192,7 +209,25 @@ ECL_EXPORT int Init(void)
 	else if (g_port1 == portArkanoidFamicom)
 		g_controllerType = quickerNES::Core::controllerType_t::arkanoidFamicom_t;
 
+	// the non-sync settings were mounted alongside the sync ones, so the core
+	// starts at the user's chosen values rather than the defaults
+	applyLiveSettings();
+
 	return 1;
+}
+
+/* The live-settings group: a host that finds all three can change a non-sync
+ * setting without rebooting the core. Missing exports just mean a reboot. */
+ECL_EXPORT int GetSettingsCapacity(void) { return (int)sizeof g_settingsBuf; }
+
+ECL_EXPORT char *GetSettingsBuffer(void) { return g_settingsBuf; }
+
+ECL_EXPORT void PutSettings(int length)
+{
+	if (length < 0 || length > (int)sizeof g_settingsBuf) return;
+	wbx_settings_use_buffer(g_settingsBuf, length);
+	applyLiveSettings();
+	wbx_settings_use_file();
 }
 
 /* Analog controls can't ride in the button mask; the host pushes each declared
