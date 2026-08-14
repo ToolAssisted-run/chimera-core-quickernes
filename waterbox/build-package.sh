@@ -79,16 +79,45 @@ with open(path, "w") as f:
     f.write("\n")
 PYVER
 
-# What compiled the guest. A package's SHA1 is its identity, and that identity is
-# relative to a toolchain: the same sources built with a different gcc are different
-# bytes and so a different machine, which is honest but bewildering when a movie
-# warns and nothing in the package explains why. Only the version number, not the
-# distro's banner - two distros' builds of the same gcc should not read as different
-# just because they spell themselves differently.
-{
-	printf 'version: %s\n' "$core_version"
-	printf 'guest compiler: gcc %s\n' "$(gcc -dumpfullversion)"
-} > "$staging/build.txt"
+# How to rebuild this exact package: the version, the source it came from, and the
+# toolchain that compiled the guest (recorded by build-core.sh). A package's SHA1 is
+# relative to all of it - the same sources through a different gcc are different
+# bytes and so a different build - and that is only bewildering if the package does
+# not say so. It now says so.
+#
+# Everything here is a function of the inputs. Nothing time-, machine- or
+# path-dependent may join it: that would make two builds of one commit differ, which
+# is the property the deterministic packaging below exists to keep.
+python3 - "$staging/build.json" "$core_version" "$here/bin/build-info.json" <<'PYPROV'
+import json, os, subprocess, sys
+
+out_path, version, info_path = sys.argv[1], sys.argv[2], sys.argv[3]
+repo = os.path.dirname(os.path.dirname(os.path.abspath(info_path)))
+
+
+def git(*args, default="unknown"):
+    try:
+        return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True,
+                              check=True).stdout.strip()
+    except Exception:
+        return default
+
+
+prov = {"version": version, "source": {
+    "commit": git("rev-parse", "HEAD"),
+    "origin": git("config", "--get", "remote.origin.url", default=""),
+    "dirty": version.endswith("+local") and "-dirty" in version,
+}}
+try:
+    with open(info_path) as f:
+        prov.update(json.load(f))
+except OSError:
+    pass  # a guest built by other means simply records less
+
+with open(out_path, "w") as f:
+    json.dump(prov, f, indent=2, sort_keys=True)
+    f.write("\n")
+PYPROV
 
 cores_dir="$minihawk_root/build/Cores"
 mkdir -p "$cores_dir"

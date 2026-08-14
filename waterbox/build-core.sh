@@ -84,6 +84,36 @@ ldflags="-static -no-pie -Wl,--eh-frame-hdr,-O2,--no-relax -T $mb/source/guest/l
 g++ $specs -mcmodel=large -fno-pic -fno-pie $ldflags -o "$out/core.wbx" \
 	"$out"/obj/*.o "$mbuild/source/guest/cxxglue.c.o" "$mbuild/source/guest/emulibc.c.o" \
 	-L"$sr/lib" -lstdc++ -lgcc -lgcc_eh -lc
+
+# What built this guest, for the package to carry. Everything here is a function of
+# the INPUTS - versions and flags - and never of the moment: a timestamp, a hostname
+# or an absolute path in this file would make two builds of the same sources differ,
+# which is exactly the property the packaging works to keep. Paths are therefore
+# recorded as versions, not as locations.
+# The compile flags are this core's own (a C guest has no cxxflags); the link line has
+# the linkscript's absolute path taken out of it, because a path is where this machine
+# keeps the guest kit, not something anyone rebuilding needs.
+build_flags="${cxxflags:-$cflags}"
+link_flags="$(printf '%s' "$ldflags" | sed 's| -T [^ ]*| -T <guest kit linkscript>|' | tr -s ' \t')"
+musl_version="$(cat "$mb/extern/musl/VERSION" 2>/dev/null || echo unknown)"
+binutils_version="$(ld --version | head -1 | grep -o '[0-9][0-9.]*$' || echo unknown)"
+os_id="$(. /etc/os-release 2>/dev/null && printf '%s %s' "${ID:-unknown}" "${VERSION_ID:-}" || echo unknown)"
+guest_kit="$(git -C "$mb" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+python3 - "$out/build-info.json" <<PYINFO
+import json, sys
+json.dump({
+    "toolchain": {
+        "compiler": "gcc $gccver",
+        "libstdc++": "$gccver",
+        "binutils": "$binutils_version",
+        "target": "x86_64-linux-musl",
+        "musl": "$musl_version",
+    },
+    "guestKit": {"name": "miniBox", "commit": "$guest_kit"},
+    "builtOn": "$os_id",
+    "flags": {"compile": "$build_flags", "link": "$link_flags"},
+}, open(sys.argv[1], "w"), indent=2, sort_keys=True)
+PYINFO
 echo "built $out/core.wbx"
 
 # drivers for the equivalence gate
