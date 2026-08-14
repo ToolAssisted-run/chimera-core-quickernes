@@ -135,6 +135,11 @@ jobs:
         run: dotnet build source/BizHawk.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
 
       - name: Build and install the waterbox core package
+        # The commit is the core's authoritative version: this build is the one that
+        # publishes the artifact, so what it stamps is what a movie can cite. A package
+        # built by hand stamps "+local" instead and can never be mistaken for this one.
+        env:
+          CORE_VERSION: ${{ github.sha }}
         run: ./waterbox/build-package.sh -r "$PWD/minihawk-checkout"
 
       # The free-set movies are committed, so nothing is converted here; if the
@@ -143,6 +148,15 @@ jobs:
       - name: Witness - free rom set
         working-directory: ./minihawk/tests
         run: ./run-level-b.sh --minihawk-root "$GITHUB_WORKSPACE/minihawk-checkout"
+
+      - name: Publish the core package
+        # Only from a gate that passed: an artifact nobody vouched for is worse than
+        # no artifact. The version inside it is the commit above.
+        uses: actions/upload-artifact@v7
+        with:
+          name: quickernes-${{ github.sha }}
+          path: minihawk-checkout/build/Cores/quickernes.zip
+          if-no-files-found: error
 
       - name: Upload witness work dir on failure
         if: failure()
