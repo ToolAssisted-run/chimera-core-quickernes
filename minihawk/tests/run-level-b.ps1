@@ -116,7 +116,7 @@ $repoRoot   = (Resolve-Path $MiniHawkRoot).Path
 # vendored snapshot of the quickerNES regression suite (upstream: TASEmulators/quickerNES, tests/)
 $testsDir   = Join-Path $PSScriptRoot "suite"
 $romsDirs   = @((Join-Path $testsDir "roms"), "C:\Users\sergiom\Documents\TAS\roms\nes")
-$emuHawk    = Join-Path $repoRoot "build\EmuHawk.exe"
+$emuHawk    = Join-Path $repoRoot "build\Chimera.exe"
 # cores load explicitly (no discovery): every instance is told which package to use
 $corePackage = Join-Path $repoRoot "build\Cores\quickernes.zip"
 if (-not (Test-Path -LiteralPath $corePackage)) { throw "core package not found at $corePackage (run quickerNES/waterbox/build-package.sh first)" }

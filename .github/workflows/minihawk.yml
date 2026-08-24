@@ -132,7 +132,7 @@ jobs:
 
       - name: Build the miniHawk solution
         working-directory: minihawk-checkout
-        run: dotnet build source/BizHawk.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
+        run: dotnet build source/Chimera.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
 
       - name: Build and install the waterbox core package
         # The commit is the core's authoritative version: this build is the one that

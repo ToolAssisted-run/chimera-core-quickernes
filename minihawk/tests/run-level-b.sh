@@ -74,7 +74,7 @@ repo_root="$(cd "$minihawk_root" && pwd)"
 # vendored snapshot of the quickerNES regression suite (upstream: TASEmulators/quickerNES, tests/)
 tests_dir="$harness_dir/suite"
 roms_dirs=("$tests_dir/roms" "$HOME/TAS/roms/nes")
-emu_hawk="$repo_root/build/EmuHawk.exe"
+emu_hawk="$repo_root/build/Chimera.exe"
 # cores load explicitly (no discovery): every instance is told which package to use
 core_package="$repo_root/build/Cores/quickernes.zip"
 [ -f "$core_package" ] || { echo "core package not found at $core_package (run quickerNES/waterbox/build-package.sh first)" >&2; exit 1; }
