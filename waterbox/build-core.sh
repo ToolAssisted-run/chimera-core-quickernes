@@ -58,7 +58,7 @@ mkdir -p "$out/obj"
 # -fno-strict-aliasing (the core type-puns the cart header; without this the
 # iNES header is misparsed under -O2). __JAFFAR_COMMON_INLINE__ is normally
 # defined by extern/jaffarCommon/meson.build.
-cflags="-fvisibility=hidden -mcmodel=large -mstack-protector-guard=global \
+cflags="-fvisibility=hidden -mcmodel=large -mstack-protector-guard=global -fno-stack-protector \
 	-fno-pic -fno-pie -fcf-protection=none -O2 -DNDEBUG -std=c++20 \
 	-fno-exceptions -fno-rtti -fno-strict-aliasing \
 	-D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT \
@@ -123,6 +123,8 @@ gcc -O2 -Wall -o "$out/run-native" "$here/run-native.c" -ldl
 gcc -O2 -Wall -I"$mb/source/host" -o "$out/run-tooling" "$here/run-tooling.c" \
 	"$mbuild/source/host/libminiboxhost.so" -Wl,-rpath,"$mbuild/source/host"
 echo "built $out/run-wbx, $out/run-native and $out/run-tooling"
+
+sh "$mb/source/guest/check-wbx.sh" "$out/core.wbx"
 
 # the package the frontend loads: core.wbx (fixed name) + waterbox.config
 cp "$here/waterbox.config" "$out/waterbox.config"
