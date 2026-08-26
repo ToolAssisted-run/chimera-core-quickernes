@@ -1,0 +1,13 @@
+{
+  "_comment": "The core-declared file form for chimera's project wizard: categories, cardinality (max -1 = unbounded), accepted formats, tooltip help. Chimera renders and enforces; this file decides. Slot ids are what project manifests record.",
+  "slots": [
+    {
+      "id": "rom",
+      "title": "Cartridge",
+      "min": 1,
+      "max": 1,
+      "formats": ["nes"],
+      "help": "The NES cartridge image in iNES format (.nes)."
+    }
+  ]
+}

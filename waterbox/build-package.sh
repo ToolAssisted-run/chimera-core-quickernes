@@ -47,6 +47,9 @@ cp "$here/waterbox.config" "$staging/waterbox.config"
 # The default bindings for the controller this package declares. miniHawk ships none of its own -
 # the package that declares a controller says how it is played by default.
 cp "$here/default_keybinds.json" "$staging/default_keybinds.json"
+# The core-declared file form for the project wizard (slots, cardinality,
+# formats, tooltips) - the frontend renders it, this file decides it.
+cp "$here/file_slots.json" "$staging/file_slots.json"
 
 # ---- version ----
 # A core's authoritative version is the commit it was built from, stamped by the
