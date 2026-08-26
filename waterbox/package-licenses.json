@@ -1,0 +1,30 @@
+{
+  "package": "quickernes",
+  "effectiveTerms": "GPL-2.0-or-later",
+  "commercialUse": "allowed under the GPL",
+  "note": "quickerNES descends from QuickNES (Nes_Emu by Shay Green), which is GPL-2.0-or-later; the built core is distributed under those terms.",
+  "components": [
+    {
+      "name": "quickerNES",
+      "license": "GPL-2.0-or-later",
+      "url": "https://github.com/ToolAssisted-run/chimera-core-quickernes",
+      "commit": "{selfCommit}",
+      "file": "LICENSE",
+      "sourceUrl": "https://github.com/ToolAssisted-run/chimera-core-quickernes/archive/{commit}.tar.gz"
+    },
+    {
+      "name": "HeadlessQuickNES (hqn)",
+      "license": "see notice",
+      "url": "https://github.com/Bindernews/HeadlessQuickNes",
+      "commit": "{submodule:extern/hqn}",
+      "file": "extern/hqn/LICENSE"
+    },
+    {
+      "name": "jaffarCommon",
+      "license": "MIT",
+      "url": "https://github.com/SergioMartin86/jaffarCommon",
+      "commit": "{submodule:extern/jaffarCommon}",
+      "file": "extern/jaffarCommon/LICENSE"
+    }
+  ]
+}

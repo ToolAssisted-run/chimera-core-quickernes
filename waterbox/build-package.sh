@@ -50,6 +50,10 @@ cp "$here/default_keybinds.json" "$staging/default_keybinds.json"
 # The core-declared file form for the project wizard (slots, cardinality,
 # formats, tooltips) - the frontend renders it, this file decides it.
 cp "$here/file_slots.json" "$staging/file_slots.json"
+# the terms travel with the binary: this package may be downloaded on its
+# own, and the emulator inside it is somebody else's work under somebody
+# else's licence (see waterbox/package-licenses.json)
+python3 "$mb/source/guest/package-licenses.py" "$here/.." "$staging"
 
 # ---- version ----
 # A core's authoritative version is the commit it was built from, stamped by the
