@@ -14,6 +14,7 @@
  */
 #include <emulibc.h>
 #include <waterbox_settings.h>
+#include <waterbox_slots.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -144,10 +145,14 @@ namespace
 		}
 	}
 
-	// Reads the whole mounted "rom" file (caller frees).
+	// Reads the whole mounted cartridge (caller frees). A chimera project
+	// mounts "slots" naming the cartridge's canonical file ({"rom":["x.nes"]},
+	// see file_slots.json); without the map, the legacy "rom" mount.
 	uint8_t *readRom(uint32_t *outLen)
 	{
-		FILE *f = fopen("rom", "rb");
+		char romName[256] = "rom";
+		wbx_slot_first("rom", romName, sizeof romName);
+		FILE *f = fopen(romName, "rb");
 		if (!f) return nullptr;
 		fseek(f, 0, SEEK_END);
 		long n = ftell(f);
