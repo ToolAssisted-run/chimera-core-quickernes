@@ -79,12 +79,12 @@ internal static class Sol2Tas
 		string port2 = c2 == "FourScore2" ? "fourscore" : "none";
 
 		var cfg = WaterboxConfig.FromJson(File.ReadAllText(Path.Combine(pkg, "waterbox.config")));
-		var sync = new WaterboxCoreSyncSettings
+		var settings = new WaterboxCoreSettings
 		{
 			Values = new Dictionary<string, object> { { "port1", port1 }, { "port2", port2 } },
 		};
 		var rom = File.ReadAllBytes(romPath);
-		var core = new WaterboxCore(rom, cfg, Path.Combine(pkg, "core.wbx"), sync);
+		var core = new WaterboxCore(rom, cfg, Path.Combine(pkg, "core.wbx"), settings);
 		var def = core.ControllerDefinition;
 		// the generator needs the per-system mnemonic letters resolved first
 		def.BuildMnemonicsCache(cfg.SystemId);
