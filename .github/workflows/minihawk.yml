@@ -134,6 +134,18 @@ jobs:
         working-directory: minihawk-checkout
         run: dotnet build source/Chimera.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
 
+      - name: Cache the guest toolchain
+        uses: actions/cache@v4
+        with:
+          path: minihawk-checkout/extern/tools/chimera-common-minibox/build/meson-cpp
+          key: guest-cpp-${{ runner.os }}-${{ hashFiles('minihawk-checkout/extern/tools/chimera-common-minibox/.git') }}-${{ hashFiles('minihawk-checkout/extern/tools/chimera-common-minibox/meson.build') }}
+
+      - name: Build miniBox (host + C++ guest toolchain)
+        run: |
+          mb="$PWD/minihawk-checkout/extern/tools/chimera-common-minibox"
+          [ -f "$mb/build/meson-cpp/build.ninja" ] || meson setup "$mb/build/meson-cpp" "$mb" -Dguest_cpp=true
+          meson compile -C "$mb/build/meson-cpp"
+
       - name: Build and install the waterbox core package
         # The commit is the core's authoritative version: this build is the one that
         # publishes the artifact, so what it stamps is what a movie can cite. A package
