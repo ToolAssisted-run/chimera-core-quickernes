@@ -37,3 +37,15 @@ option('enableStudyTracers',
        value : false,
        description : 'Compiles the env-gated CPU study tracers (PIN_TRACE/PIN_CYCLE/PIN_PROTECT_FLIP/MM_TRACE, RAM-exec counter, timing-hash). Costs ~30%% even when env-disabled; for RE sessions only.'
 )
+
+option('waterbox',
+  type : 'boolean',
+  value : false,
+  description : 'Build the Chimera waterbox core (libquicknes + the gate drivers) instead of the tooling'
+)
+
+option('minibox_dir',
+  type : 'string',
+  value : '',
+  description : 'miniBox checkout (guest kit + host)'
+)

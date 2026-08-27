@@ -20,7 +20,10 @@ native library in a package; the retired format that had those is described in
   by default, and the frontend uses that for a controller the user's config has
   never seen. Player 1 only, plus the mouse for the arkanoid paddles and fire,
   which is BizHawk's own choice.
-- `build-core.sh` — builds `core.wbx` plus the three drivers below.
+- `setup-guest.sh` — writes the meson cross file for miniBox's guest toolchain
+  and configures `build/meson-guest`. The build itself is the repository's
+  `meson.build`: a cross configure is the guest (`core.wbx`), and
+  `-Dwaterbox=true` natively is `libquicknes` plus the three drivers below.
 - `build-package.sh` — builds the package and installs it into a miniHawk
   checkout as `build/Cores/quickernes.zip`.
 - `run-native.c` / `run-wbx.c` — the equivalence gate: the same rom, frame count
@@ -42,13 +45,15 @@ configures and builds it on demand.
 ## Gates
 
 ```sh
+N=build/meson-native; G=build/meson-guest
+
 # equivalence: sandboxed emulation must be byte-identical to the native library
-bin/run-native <libquicknes.so> <rom.nes> 300 > native.txt
-bin/run-wbx    bin/core.wbx     <rom.nes> 300 > box.txt   # compare the digest lines
-bin/run-wbx    bin/core.wbx     <rom.nes> 120 --rerecord  # + savestate round-trip every frame
+$N/run-native $N/libquicknes.so <rom.nes> 300 > native.txt
+$N/run-wbx    $G/core.wbx       <rom.nes> 300 > box.txt   # compare the digest lines
+$N/run-wbx    $G/core.wbx       <rom.nes> 120 --rerecord  # + savestate round-trip every frame
 
 # tooling: what the frontend will find and what it will show
-bin/run-tooling bin/core.wbx <rom.nes> 120
+$N/run-tooling $G/core.wbx <rom.nes> 120
 ```
 
 The full frontend gate — 26 real movies replayed through EmuHawk against

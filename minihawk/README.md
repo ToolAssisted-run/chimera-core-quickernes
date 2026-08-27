@@ -13,7 +13,8 @@ were deleted because nothing can load them any more; they remain in git history.
 
 What is still here, and why:
 
-- `native/` — `bizinterface.cpp` and its Makefile, which build `libquicknes`
+- `native/` — `bizinterface.cpp`, the qn_* C API that `libquicknes` exposes (built by
+  the repository's meson description, `-Dwaterbox=true`)
   as an ordinary shared library. **Still load-bearing**: this is the *native
   reference* the waterbox equivalence gate runs against
   (`waterbox/run-native.c` dlopens `native/libquicknes.so`), proving the

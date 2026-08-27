@@ -1,3 +1,6 @@
+# Meson build trees: the guest cross file and both build dirs are machine-local
+build/
+
 run-clang-format
 
 # Things

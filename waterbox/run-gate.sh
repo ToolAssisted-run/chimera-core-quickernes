@@ -10,17 +10,19 @@
 # EmuHawk against goldens) lives in ../minihawk/tests.
 #
 # Usage:
-#   ./run-gate.sh [-o <build dir>] [-f <frames>] [rom...]
+#   ./run-gate.sh [-n <native build dir>] [-g <guest build dir>] [-f <frames>] [rom...]
 # with no roms, it uses the free-to-distribute set vendored in the repo.
 set -u
 
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/.." && pwd)"
-out="$here/bin"
+nat="$root/build/meson-native"
+gst="$root/build/meson-guest"
 frames=600
-while getopts "o:f:" opt; do
+while getopts "n:g:f:" opt; do
 	case "$opt" in
-		o) out="$OPTARG" ;;
+		n) nat="$OPTARG" ;;
+		g) gst="$OPTARG" ;;
 		f) frames="$OPTARG" ;;
 		*) exit 2 ;;
 	esac
@@ -36,9 +38,11 @@ if [ ${#roms[@]} -eq 0 ]; then
 	)
 fi
 
-native="$root/minihawk/native/libquicknes.so"
-[ -f "$native" ] || { echo "native reference not built: $native (run make in minihawk/native)" >&2; exit 1; }
-[ -x "$out/run-wbx" ] || { echo "drivers not built: $out/run-wbx (run build-core.sh)" >&2; exit 1; }
+native="$nat/libquicknes.so"
+[ -f "$native" ] && [ -x "$nat/run-wbx" ] || {
+	echo "native build missing: meson setup build/meson-native -Dwaterbox=true && ninja -C build/meson-native" >&2; exit 1; }
+[ -f "$gst/core.wbx" ] || {
+	echo "guest build missing: sh waterbox/setup-guest.sh && ninja -C build/meson-guest core.wbx" >&2; exit 1; }
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -55,10 +59,10 @@ for rom in "${roms[@]}"; do
 	name="$(basename "$rom" .nes)"
 	if [ ! -f "$rom" ]; then report "$name" SKIP "rom not found"; continue; fi
 
-	if ! "$out/run-native" "$native" "$rom" "$frames" 2>"$work/nat.err" | digests > "$work/nat.txt"; then
+	if ! "$nat/run-native" "$native" "$rom" "$frames" 2>"$work/nat.err" | digests > "$work/nat.txt"; then
 		report "$name:equivalence" FAIL "native runner error: $(head -1 "$work/nat.err")"; continue
 	fi
-	if ! "$out/run-wbx" "$out/core.wbx" "$rom" "$frames" 2>"$work/box.err" | digests > "$work/box.txt"; then
+	if ! "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" 2>"$work/box.err" | digests > "$work/box.txt"; then
 		report "$name:equivalence" FAIL "waterbox runner error: $(head -1 "$work/box.err")"; continue
 	fi
 	if cmp -s "$work/nat.txt" "$work/box.txt"; then
@@ -69,7 +73,7 @@ for rom in "${roms[@]}"; do
 
 	# Round-trip the whole machine through save/load state around every frame:
 	# the digests must come out exactly as they do without it.
-	if ! "$out/run-wbx" "$out/core.wbx" "$rom" "$frames" --rerecord 2>/dev/null | digests > "$work/rr.txt"; then
+	if ! "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" --rerecord 2>/dev/null | digests > "$work/rr.txt"; then
 		report "$name:savestate" FAIL "rerecord runner error"; continue
 	fi
 	if cmp -s "$work/box.txt" "$work/rr.txt"; then
@@ -80,8 +84,8 @@ for rom in "${roms[@]}"; do
 
 	# The optional tooling exports the frontend probes for: absence is allowed,
 	# but a core that claims a surface must render one.
-	if [ -x "$out/run-tooling" ]; then
-		if "$out/run-tooling" "$out/core.wbx" "$rom" 120 > "$work/tool.txt" 2>&1; then
+	if [ -x "$nat/run-tooling" ]; then
+		if "$nat/run-tooling" "$gst/core.wbx" "$rom" 120 > "$work/tool.txt" 2>&1; then
 			if grep -q "RENDER FAILED" "$work/tool.txt"; then
 				report "$name:tooling" FAIL "a declared surface did not render"
 			else

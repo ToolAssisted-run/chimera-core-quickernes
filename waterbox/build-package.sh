@@ -9,8 +9,9 @@
 # Usage: ./build-package.sh [-m <miniBox dir>] [-r <miniHawk root>] [-o <build dir>]
 set -eu
 here="$(cd "$(dirname "$0")" && pwd)"
+root="$(cd "$here/.." && pwd)"
 mb="${MINIBOX_DIR:-}"
-out="$here/bin"
+out="$root/build"
 minihawk_root=""
 while getopts "m:r:o:" opt; do
 	case "$opt" in
@@ -37,12 +38,15 @@ mbuild="$mb/build/meson-cpp"
 [ -f "$mbuild/build.ninja" ] || meson setup "$mbuild" "$mb" -Dguest_cpp=true
 ninja -C "$mbuild"
 
-sh "$here/build-core.sh" -m "$mb" -o "$out"
+# the guest, via the meson cross build
+[ -f "$root/build/meson-guest/build.ninja" ] || MINIBOX_DIR="$mb" sh "$here/setup-guest.sh" -m "$mb"
+ninja -C "$root/build/meson-guest" core.wbx
+sh "$mb/source/guest/check-wbx.sh" "$root/build/meson-guest/core.wbx"
 
 staging="$out/package-staging"
 rm -rf "$staging"
 mkdir -p "$staging"
-cp "$out/core.wbx" "$staging/core.wbx"
+cp "$root/build/meson-guest/core.wbx" "$staging/core.wbx"
 cp "$here/waterbox.config" "$staging/waterbox.config"
 # The default bindings for the controller this package declares. miniHawk ships none of its own -
 # the package that declares a controller says how it is played by default.
@@ -87,7 +91,7 @@ with open(path, "w") as f:
 PYVER
 
 # How to rebuild this exact package: the version, the source it came from, and the
-# toolchain that compiled the guest (recorded by build-core.sh). A package's SHA1 is
+# toolchain that compiled the guest. A package's SHA1 is
 # relative to all of it - the same sources through a different gcc are different
 # bytes and so a different build - and that is only bewildering if the package does
 # not say so. It now says so.
@@ -95,11 +99,15 @@ PYVER
 # Everything here is a function of the inputs. Nothing time-, machine- or
 # path-dependent may join it: that would make two builds of one commit differ, which
 # is the property the deterministic packaging below exists to keep.
-python3 - "$staging/build.json" "$core_version" "$here/bin/build-info.json" <<'PYPROV'
+gccver="$(gcc -dumpfullversion)"
+musl_version="$(cat "$mb/extern/musl/VERSION" 2>/dev/null || echo unknown)"
+binutils_version="$(ld --version | head -1 | grep -o '[0-9][0-9.]*$' || echo unknown)"
+os_id="$(. /etc/os-release 2>/dev/null && printf '%s %s' "${ID:-unknown}" "${VERSION_ID:-}" || echo unknown)"
+guest_kit="$(git -C "$mb" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+python3 - "$staging/build.json" "$core_version" "$root" <<PYPROV
 import json, os, subprocess, sys
 
-out_path, version, info_path = sys.argv[1], sys.argv[2], sys.argv[3]
-repo = os.path.dirname(os.path.dirname(os.path.abspath(info_path)))
+out_path, version, repo = sys.argv[1], sys.argv[2], sys.argv[3]
 
 
 def git(*args, default="unknown"):
@@ -114,12 +122,14 @@ prov = {"version": version, "source": {
     "commit": git("rev-parse", "HEAD"),
     "origin": git("config", "--get", "remote.origin.url", default=""),
     "dirty": version.endswith("+local") and "-dirty" in version,
-}}
-try:
-    with open(info_path) as f:
-        prov.update(json.load(f))
-except OSError:
-    pass  # a guest built by other means simply records less
+}, "toolchain": {
+    "compiler": "gcc $gccver",
+    "libstdc++": "$gccver",
+    "binutils": "$binutils_version",
+    "target": "x86_64-linux-musl",
+    "musl": "$musl_version",
+}, "guestKit": {"name": "miniBox", "commit": "$guest_kit"},
+   "builtOn": "$os_id"}
 
 with open(out_path, "w") as f:
     json.dump(prov, f, indent=2, sort_keys=True)
