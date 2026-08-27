@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the quickerNES waterbox core package and installs it into a miniHawk
-# checkout as build/Cores/quickernes.zip.
+# checkout as build/Cores/quickernes.chimeraCore.
 #
 # A package is exactly two files - core.wbx (fixed name) plus waterbox.config -
 # and miniHawk loads it through its one built-in generic adapter. There is no
@@ -138,7 +138,7 @@ PYPROV
 
 cores_dir="$minihawk_root/build/Cores"
 mkdir -p "$cores_dir"
-zip_path="$cores_dir/quickernes.zip"
+zip_path="$cores_dir/quickernes.chimeraCore"
 rm -f "$zip_path"
 # The package's SHA1 is the core's identity: it is what a movie records to say which
 # machine produced it. So the same sources must produce the same bytes - which an

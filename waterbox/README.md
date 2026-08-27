@@ -25,7 +25,7 @@ native library in a package; the retired format that had those is described in
   `meson.build`: a cross configure is the guest (`core.wbx`), and
   `-Dwaterbox=true` natively is `libquicknes` plus the three drivers below.
 - `build-package.sh` — builds the package and installs it into a miniHawk
-  checkout as `build/Cores/quickernes.zip`.
+  checkout as `build/Cores/quickernes.chimeraCore`.
 - `run-native.c` / `run-wbx.c` — the equivalence gate: the same rom, frame count
   and per-frame button pattern through the original shared library and through
   the sandbox. Video, audio and every memory domain must hash identically.
@@ -35,7 +35,7 @@ native library in a package; the retired format that had those is described in
 ## Building
 
 ```sh
-./build-package.sh -r <miniHawk checkout>     # core.wbx + waterbox.config -> build/Cores/quickernes.zip
+./build-package.sh -r <miniHawk checkout>     # core.wbx + waterbox.config -> build/Cores/quickernes.chimeraCore
 ```
 
 The C++ guest toolchain (musl + libstdc++ built for the sandbox) comes from the

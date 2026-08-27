@@ -172,7 +172,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: quickernes-${{ github.sha }}
-          path: minihawk-checkout/build/Cores/quickernes.zip
+          path: minihawk-checkout/build/Cores/quickernes.chimeraCore
           if-no-files-found: error
 
       - name: Upload witness work dir on failure
