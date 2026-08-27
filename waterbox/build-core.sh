@@ -1,0 +1,131 @@
+#!/bin/sh
+# Builds core.wbx - quickerNES as a miniHawk waterbox core - plus the two drivers
+# used by the equivalence gate (run-wbx against the sandbox, run-native against
+# the original shared library).
+#
+# Prereq: a miniBox checkout built WITH the C++ guest toolchain, since quickerNES
+# is C++ (Tier 2: STL, no exceptions):
+#   meson setup <miniBox>/build/meson-cpp -Dguest_cpp=true
+#   ninja -C <miniBox>/build/meson-cpp
+#
+# Usage: ./build-core.sh [-m <miniBox dir>] [-o <output dir>]
+set -eu
+here="$(cd "$(dirname "$0")" && pwd)"
+root="$(cd "$here/.." && pwd)"
+mb="${MINIBOX_DIR:-$HOME/miniBox}"
+out="$here/bin"
+while getopts "m:o:" opt; do
+	case "$opt" in
+		m) mb="$OPTARG" ;;
+		o) out="$OPTARG" ;;
+		*) exit 2 ;;
+	esac
+done
+mb="$(cd "$mb" && pwd)"
+mbuild="$mb/build/meson-cpp"
+sr="$mbuild/guest-sysroot"
+gccver="$(gcc -dumpfullversion)"
+
+[ -f "$sr/lib/libstdc++.a" ] || {
+	echo "miniBox C++ guest toolchain missing at $sr." >&2
+	echo "Run: meson setup $mbuild $mb -Dguest_cpp=true && ninja -C $mbuild" >&2
+	exit 1
+}
+
+# The link globs $out/obj/*.o, so a stale object from a renamed or removed source
+# would be linked in silently (or collide). Start from an empty object dir.
+rm -rf "$out/obj"
+mkdir -p "$out/obj"
+
+# The core is a pile of #ifdefs: whole features compile out when their macro is
+# absent, silently. These MUST match minihawk/native/Makefile, which is what the
+# equivalence gate and the goldens were produced with:
+#   _QUICKERNES_SUPPORT_ARKANOID_INPUTS - without it the paddle path (and the
+#     whole arkanoid branch of read_io) does not exist, so an Arkanoid movie
+#     desyncs while every joypad game still passes.
+#   _QUICKERNES_DETECT_JOYPAD_READS - without it joypad_read_count never moves,
+#     so InputWasRead always says "not read" and EVERY frame looks like a lag
+#     frame to the frontend.
+# (_QUICKERNES_PRINT_CART_INFO is deliberately NOT set: it only prints.)
+#
+# _QUICKERNES_ENABLE_TRACEBACK_SUPPORT turns on the core's per-instruction trace
+# hook, without which set_tracecb is bound but never fires (it is defined nowhere
+# else in the repo, so the native build's tracing is inert). It costs one
+# predictable branch per instruction and does not change emulation output - the
+# equivalence gate is re-run with it on.
+#
+# The guest flags: miniBox's frozen waterbox flags plus quickerNES's own
+# -fno-strict-aliasing (the core type-puns the cart header; without this the
+# iNES header is misparsed under -O2). __JAFFAR_COMMON_INLINE__ is normally
+# defined by extern/jaffarCommon/meson.build.
+cflags="-fvisibility=hidden -mcmodel=large -mstack-protector-guard=global -fno-stack-protector \
+	-fno-pic -fno-pie -fcf-protection=none -O2 -DNDEBUG -std=c++20 \
+	-fno-exceptions -fno-rtti -fno-strict-aliasing \
+	-D_QUICKERNES_ENABLE_TRACEBACK_SUPPORT \
+	-D_QUICKERNES_SUPPORT_ARKANOID_INPUTS -D_QUICKERNES_DETECT_JOYPAD_READS"
+incs="-I$sr/include/c++/$gccver -I$sr/include/c++/$gccver/x86_64-linux-musl \
+	-I$mb/extern/emulibc -I$mb/source/guest/include -I$mb/extern/jsmn \
+	-I$root/source -I$root/source/quickerNES -I$root/source/quickerNES/core \
+	-I$root/extern/jaffarCommon/include"
+jaffar='-D__JAFFAR_COMMON_INLINE__=__attribute__((__used__)) inline'
+specs="-specs $sr/lib/musl-gcc.specs"
+
+# guest objects: the unmodified core + the waterbox ABI layer
+srcs="$(find "$root/source/quickerNES" -name '*.cpp' | sort) $here/waterbox.cpp"
+for f in $srcs; do
+	o="$out/obj/$(echo "${f#$root/}" | tr '/' '_').o"
+	g++ $specs $cflags $incs "$jaffar" -c -o "$o" "$f"
+done
+
+# The link recipe (library order, --no-relax, the weak pthread pulls) comes from
+# miniBox's guest kit; see source/guest/meson.build there for why each is needed.
+ldflags="-static -no-pie -Wl,--eh-frame-hdr,-O2,--no-relax -T $mb/source/guest/linkscript.T \
+	-Wl,-u,pthread_once -Wl,-u,pthread_cond_wait -Wl,-u,pthread_cond_broadcast -Wl,-u,pthread_key_create"
+g++ $specs -mcmodel=large -fno-pic -fno-pie $ldflags -o "$out/core.wbx" \
+	"$out"/obj/*.o "$mbuild/source/guest/cxxglue.c.o" "$mbuild/source/guest/emulibc.c.o" \
+	-L"$sr/lib" -lstdc++ -lgcc -lgcc_eh -lc
+
+# What built this guest, for the package to carry. Everything here is a function of
+# the INPUTS - versions and flags - and never of the moment: a timestamp, a hostname
+# or an absolute path in this file would make two builds of the same sources differ,
+# which is exactly the property the packaging works to keep. Paths are therefore
+# recorded as versions, not as locations.
+# The compile flags are this core's own (a C guest has no cxxflags); the link line has
+# the linkscript's absolute path taken out of it, because a path is where this machine
+# keeps the guest kit, not something anyone rebuilding needs.
+build_flags="${cxxflags:-$cflags}"
+link_flags="$(printf '%s' "$ldflags" | sed 's| -T [^ ]*| -T <guest kit linkscript>|' | tr -s ' \t')"
+musl_version="$(cat "$mb/extern/musl/VERSION" 2>/dev/null || echo unknown)"
+binutils_version="$(ld --version | head -1 | grep -o '[0-9][0-9.]*$' || echo unknown)"
+os_id="$(. /etc/os-release 2>/dev/null && printf '%s %s' "${ID:-unknown}" "${VERSION_ID:-}" || echo unknown)"
+guest_kit="$(git -C "$mb" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+python3 - "$out/build-info.json" <<PYINFO
+import json, sys
+json.dump({
+    "toolchain": {
+        "compiler": "gcc $gccver",
+        "libstdc++": "$gccver",
+        "binutils": "$binutils_version",
+        "target": "x86_64-linux-musl",
+        "musl": "$musl_version",
+    },
+    "guestKit": {"name": "miniBox", "commit": "$guest_kit"},
+    "builtOn": "$os_id",
+    "flags": {"compile": "$build_flags", "link": "$link_flags"},
+}, open(sys.argv[1], "w"), indent=2, sort_keys=True)
+PYINFO
+echo "built $out/core.wbx"
+
+# drivers for the equivalence gate
+gcc -O2 -Wall -I"$mb/source/host" -o "$out/run-wbx" "$here/run-wbx.c" \
+	"$mbuild/source/host/libminiboxhost.so" -Wl,-rpath,"$mbuild/source/host"
+gcc -O2 -Wall -o "$out/run-native" "$here/run-native.c" -ldl
+gcc -O2 -Wall -I"$mb/source/host" -o "$out/run-tooling" "$here/run-tooling.c" \
+	"$mbuild/source/host/libminiboxhost.so" -Wl,-rpath,"$mbuild/source/host"
+echo "built $out/run-wbx, $out/run-native and $out/run-tooling"
+
+sh "$mb/source/guest/check-wbx.sh" "$out/core.wbx"
+
+# the package the frontend loads: core.wbx (fixed name) + waterbox.config
+cp "$here/waterbox.config" "$out/waterbox.config"
+echo "package files ready: $out/core.wbx + $out/waterbox.config"

@@ -223,6 +223,11 @@ void Mapper::intercept_writes(nes_addr_t addr, unsigned size)
   emu().add_mapper_intercept(addr, size, false, true);
 }
 
+void Mapper::set_sram_bank(int bank)
+{
+  emu_->set_sram_bank(bank);
+}
+
 void Mapper::enable_sram(bool enabled, bool read_only)
 {
   emu_->enable_sram(enabled, read_only);

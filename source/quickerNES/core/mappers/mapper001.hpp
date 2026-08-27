@@ -123,6 +123,14 @@ class Mapper001 : public Mapper, mmc1_state_t
       }
     }
 
+    // PRG RAM banking (SOROM/SXROM). On boards with more than 8K of PRG RAM, the
+    // CHR bank 0 register doubles as the save-RAM bank select: bits 3-2 pick the
+    // 8K window at $6000 (https://www.nesdev.org/wiki/MMC1). These games use CHR
+    // RAM, so those bits are free for it. Derived from regs, so it needs no state
+    // of its own - a deserialize re-applies it through apply_mapping.
+    if (cart().prg_ram_size() > 0x2000)
+      set_sram_bank((regs[1] >> 2) & 3);
+
     // PRG
     int bank = (regs[1] & 0x10) | (regs[3] & 0x0f);
     if (!(regs[0] & 0x08))

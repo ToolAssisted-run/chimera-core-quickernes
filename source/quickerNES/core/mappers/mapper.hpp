@@ -104,6 +104,9 @@ class Mapper
   // Enable 8K of RAM at 0x6000-0x7FFF, optionally read-only.
   void enable_sram(bool enabled = true, bool read_only = false);
 
+  // Selects the 8K PRG RAM bank visible at $6000 (banked boards only).
+  void set_sram_bank(int bank);
+
   // Cause CPU writes within given address range to call mapper's write() function.
   // Might map a larger address range, which the mapper can ignore and pass to
   // Mapper::write(). The range 0x8000-0xffff is always intercepted by the mapper.

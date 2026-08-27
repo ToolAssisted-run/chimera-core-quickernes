@@ -252,13 +252,16 @@ class Emu
   /// Reads a byte from the CPU-visible code map (honors current PRG banking). For trace/audit tools.
   uint8_t peek_code(uint16_t addr) { return emu.peekCode(addr); }
 
-  // Optional 8K memory
+  // Cartridge PRG RAM ("work"/save RAM at $6000). 8K on almost every board; a
+  // banked board (MMC1 SOROM/SXROM) carries up to 32K, of which the CPU sees one
+  // 8K window at a time. Report what the cart actually has, so a memory viewer
+  // shows the whole thing rather than the visible window or the physical maximum.
   enum
   {
-    high_mem_size = 0x2000
+    high_mem_size = 0x2000 // the window, and the size of an ordinary cart's PRG RAM
   };
   uint8_t *high_mem() const { return emu.impl->sram; }
-  size_t get_high_mem_size() const { return high_mem_size; }
+  size_t get_high_mem_size() const { return cart() ? (size_t)cart()->prg_ram_size() : (size_t)high_mem_size; }
 
   // Sprite memory
   uint8_t *spr_mem() const { return emu.ppu.getSpriteRAM(); }

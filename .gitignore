@@ -35,3 +35,11 @@ run-clang-format
 *.exe
 *.out
 *.app
+
+# miniHawk adapter build outputs
+minihawk/bin/
+minihawk/obj/
+
+# witness harness scratch (per-run configs, dumps, logs)
+minihawk/tests/work/
+waterbox/bin/
