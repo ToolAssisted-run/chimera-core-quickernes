@@ -176,8 +176,15 @@ namespace
 extern "C"
 {
 
+/* What went wrong, when Init says it did. The host asks for this after a failed
+ * load and shows it to the user; without it a refusal is a silent zero. */
+static char g_loadError[256];
+
+ECL_EXPORT const char *GetLoadError(void) { return g_loadError; }
+
 ECL_EXPORT int Init(void)
 {
+	g_loadError[0] = '\0';
 	uint32_t romLen = 0;
 	uint8_t *rom = readRom(&romLen);
 	if (!rom) return 0;
@@ -194,6 +201,46 @@ ECL_EXPORT int Init(void)
 
 	if (g_emu->load_ines(rom, romLen)) { free(rom); return 0; }  // returns an error string
 	free(rom);
+
+	/* What the cartridge starts with already saved.
+	 *
+	 * A battery-backed NES cart keeps its saves in WRAM, which is ordinary
+	 * machine memory - it rewinds and savestates like the rest of the machine,
+	 * and needs none of the in-guest file machinery bigger cores do. What it
+	 * did need was a way IN and a way OUT, because a project's saved game
+	 * cannot be typed in.
+	 *
+	 * The file the project mounted is read straight into WRAM here: after the
+	 * cart is loaded, so the memory exists, and inside Init, so it is part of
+	 * the sealed baseline. A cart with no battery has nothing to restore, and
+	 * saying so is better than quietly writing into memory the game treats as
+	 * scratch. */
+	if (wbx_slot_count("savedata") > 0)
+	{
+		char saveName[256];
+		if (wbx_slot_first("savedata", saveName, sizeof saveName))
+		{
+			if (!g_emu->cart()->has_battery_ram())
+			{
+				snprintf(g_loadError, sizeof g_loadError,
+					"this cartridge has no battery, so it keeps no saves - "
+					"'%s' would not be read.", saveName);
+				return 0;
+			}
+			FILE *sf = fopen(saveName, "rb");
+			if (!sf)
+			{
+				snprintf(g_loadError, sizeof g_loadError, "could not open '%s'", saveName);
+				return 0;
+			}
+			const size_t want = quickerNES::Emu::high_mem_size;
+			const size_t got = fread(g_emu->high_mem(), 1, want, sf);
+			fclose(sf);
+			if (got != want)
+				fprintf(stderr, "chimera: %s is %zu bytes, not %zu; the rest is left as it was\n",
+					saveName, got, want);
+		}
+	}
 
 	if (g_emu->set_sample_rate(SampleRate)) return 0;
 	g_emu->set_equalizer(quickerNES::Emu::nes_eq);
@@ -385,6 +432,40 @@ ECL_EXPORT uint32_t *GetVideoBgra(void) { return g_video; }
 ECL_EXPORT int16_t *GetAudio(void) { return g_audio; }
 ECL_EXPORT int GetAudioSampleCount(void) { return g_audioSamples; }
 ECL_EXPORT int InputWasRead(void) { return g_joypadReadThisFrame; }
+
+/* --- save data (guest ABI: the savedata group) ---
+ *
+ * The user's way out, and the shape a project's way back in expects. A
+ * battery-backed cart's saves are WRAM and nothing else; a cart without a
+ * battery keeps none, exports none, and the frontend's menu item then finds
+ * nothing to write.
+ *
+ * docs/save-data.md said a core whose saves are plain machine memory need not
+ * export the group at all, since savestates already carry it. That is true of
+ * REPRODUCTION and false of the user: without this there is no way to take a
+ * saved game out of the machine and no way to start another project from it.
+ */
+static bool HasBatterySaves(void)
+{
+	return g_emu != nullptr && g_emu->cart() != nullptr && g_emu->cart()->has_battery_ram();
+}
+
+ECL_EXPORT int32_t GetSaveDataFileCount(void) { return HasBatterySaves() ? 1 : 0; }
+
+ECL_EXPORT const char *GetSaveDataFileName(int32_t i)
+{
+	return i == 0 && HasBatterySaves() ? "battery.sav" : nullptr;
+}
+
+ECL_EXPORT int64_t GetSaveDataFileSize(int32_t i)
+{
+	return i == 0 && HasBatterySaves() ? (int64_t)quickerNES::Emu::high_mem_size : 0;
+}
+
+ECL_EXPORT const uint8_t *GetSaveDataFileBuffer(int32_t i)
+{
+	return i == 0 && HasBatterySaves() ? g_emu->high_mem() : nullptr;
+}
 
 /* --- self-described memory domains (guest ABI v1) ---
  * Queried by the host AFTER Init, because which domains exist and how big they

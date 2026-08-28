@@ -169,6 +169,47 @@ else
 	fi
 fi
 
+# ---- save data: out, and back in -------------------------------------------
+#
+# A battery-backed cart keeps its saves in WRAM. They leave through the savedata
+# channel (what Export Save Data writes) and come back through the savedata slot
+# (what a project mounts), and this proves the pair with a save the machine
+# could not have written. sprilo has no battery, so the test flags one - the
+# same trick the bundle tests use.
+batt="$work/sprilo-battery.nes"
+python3 - "$root/tests/roms/sprilo.nes" "$batt" <<'PYBATT'
+import sys
+d = bytearray(open(sys.argv[1], 'rb').read())
+d[6] |= 0x02          # iNES flags 6, bit 1: battery-backed save RAM
+open(sys.argv[2], 'wb').write(bytes(d))
+PYBATT
+"$nat/run-wbx" "$gst/core.wbx" "$batt" 60 --savedata-out "$work/nes.sav" >/dev/null 2>&1
+if [ ! -s "$work/nes.sav" ]; then
+	report "savedata:export" FAIL "a battery cart exported nothing"
+else
+	report "savedata:export" PASS "$(stat -c%s "$work/nes.sav") bytes of battery WRAM left through the channel"
+	python3 - "$work/nes.sav" "$work/nes-seed.sav" <<'PYSEED'
+import sys
+d = bytearray(open(sys.argv[1], 'rb').read())
+d[0:16] = b'CHIMERA-SEED-TST'
+open(sys.argv[2], 'wb').write(bytes(d))
+PYSEED
+	"$nat/run-wbx" "$gst/core.wbx" "$batt" 60 --savedata-in "$work/nes-seed.sav" \
+		--savedata-out "$work/nes-back.sav" >/dev/null 2>&1
+	if ! head -c 16 "$work/nes-back.sav" 2>/dev/null | grep -q "CHIMERA-SEED-TST"; then
+		report "savedata:seeded" FAIL "the save the project supplied did not reach the cart"
+	else
+		report "savedata:seeded" PASS "a save the project supplied reached the cart and returned"
+	fi
+	# ...and a cart with no battery says so rather than pretending
+	if "$nat/run-wbx" "$gst/core.wbx" "$root/tests/roms/sprilo.nes" 10 \
+		--savedata-in "$work/nes-seed.sav" >/dev/null 2>&1; then
+		report "savedata:refused" FAIL "a cart with no battery accepted save data"
+	else
+		report "savedata:refused" PASS "a cart with no battery refuses save data it cannot keep"
+	fi
+fi
+
 echo ""
 echo "$ok ok, $failed failed"
 [ "$failed" -gt 0 ] && exit 1

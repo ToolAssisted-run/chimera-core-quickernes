@@ -6,8 +6,21 @@
       "title": "Cartridge",
       "min": 1,
       "max": 1,
-      "formats": ["nes"],
+      "formats": [
+        "nes"
+      ],
       "help": "The NES cartridge image in iNES format (.nes)."
+    },
+    {
+      "id": "savedata",
+      "title": "Save data",
+      "min": 0,
+      "max": 1,
+      "formats": [
+        "sav",
+        "srm"
+      ],
+      "help": "What a battery-backed cartridge starts with already saved. This is the file Emulator > Export Save Data... writes - battery.sav, the cart's 8KB of WRAM - put back so a run can continue from where another left off. It is mounted read-only and pinned by hash, and the movie cites it, so a movie that starts from a saved game is as reproducible as one that starts from a fresh cart. A cartridge with no battery keeps no saves, and the project will say so rather than load one. Leave it empty and the cart starts as it came."
     }
   ]
 }

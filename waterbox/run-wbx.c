@@ -96,15 +96,20 @@ static uint8_t *slurp(const char *p, long *n)
 
 int main(int argc, char **argv)
 {
-	const char *wbxPath = 0, *romPath = 0; long frames = 60; int rerecord = 0, turbo = 0;
+	const char *wbxPath = 0, *romPath = 0, *savedataIn = 0, *savedataOut = 0;
+	long frames = 60; int rerecord = 0, turbo = 0;
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--rerecord")) rerecord = 1;
 		else if (!strcmp(argv[i], "--turbo")) turbo = 1;
+		/* what a project would mount in its savedata slot, and where the
+		 * frontend's Export Save Data would write */
+		else if (!strcmp(argv[i], "--savedata-in") && i + 1 < argc) savedataIn = argv[++i];
+		else if (!strcmp(argv[i], "--savedata-out") && i + 1 < argc) savedataOut = argv[++i];
 		else if (!wbxPath) wbxPath = argv[i];
 		else if (!romPath) romPath = argv[i];
 		else frames = strtol(argv[i], 0, 0);
 	}
-	if (!wbxPath || !romPath) { fprintf(stderr, "usage: run-wbx <core.wbx> <rom.nes> <frames> [--rerecord] [--turbo]\n"); return 2; }
+	if (!wbxPath || !romPath) { fprintf(stderr, "usage: run-wbx <core.wbx> <rom.nes> <frames> [--rerecord] [--turbo] [--savedata-in f] [--savedata-out f]\n"); return 2; }
 
 	long romLen = 0;
 	uint8_t *rom = slurp(romPath, &romLen);
@@ -126,9 +131,33 @@ int main(int argc, char **argv)
 	wbx_mount_file(h, "rom", mem_reader, (uintptr_t)&mr, false, &r);
 	if (r.error_message[0]) { fprintf(stderr, "mount: %s\n", r.error_message); return 1; }
 
+	/* The savedata slot, exactly as the frontend presents one: a "slots" map
+	 * naming the file, and the file itself mounted under that name. */
+	long saveLen = 0;
+	uint8_t *saveBytes = 0;
+	static char slotsJson[512];
+	if (savedataIn) {
+		saveBytes = slurp(savedataIn, &saveLen);
+		if (!saveBytes) { fprintf(stderr, "cannot read %s\n", savedataIn); return 1; }
+		const char *base = strrchr(savedataIn, '/');
+		base = base ? base + 1 : savedataIn;
+		snprintf(slotsJson, sizeof slotsJson, "{\"savedata\":[\"%s\"]}", base);
+		memreader slr = { (uint8_t *)slotsJson, strlen(slotsJson), 0 };
+		wbx_mount_file(h, "slots", mem_reader, (uintptr_t)&slr, false, &r);
+		if (r.error_message[0]) { fprintf(stderr, "mount slots: %s\n", r.error_message); return 1; }
+		memreader sdr = { saveBytes, (size_t)saveLen, 0 };
+		wbx_mount_file(h, base, mem_reader, (uintptr_t)&sdr, false, &r);
+		if (r.error_message[0]) { fprintf(stderr, "mount %s: %s\n", base, r.error_message); return 1; }
+	}
+
 	wbx_activate_host(h, &r);
 	intfn Init = (intfn)proc(h, "Init");
-	if (Init() != 1) { fprintf(stderr, "Init failed (bad rom?)\n"); return 1; }
+	if (Init() != 1) {
+		ptrfn GetLoadError = (ptrfn)proc(h, "GetLoadError");
+		const char *why = GetLoadError ? (const char *)GetLoadError() : "";
+		fprintf(stderr, "Init failed%s%s\n", why && why[0] ? ": " : " (bad rom?)", why ? why : "");
+		return 1;
+	}
 
 	framefn FrameAdvance = (framefn)proc(h, "FrameAdvance");
 	ptrfn GetVideoBgra = (ptrfn)proc(h, "GetVideoBgra");
@@ -200,7 +229,26 @@ int main(int argc, char **argv)
 		printf("domain[%s]=%016llx\n", (const char *)GetMemoryDomainName(i), (unsigned long long)dh);
 	}
 
+	/* Export Save Data, as the frontend does it: the core enumerates its files
+	 * and the host writes them verbatim. One file here, always - a NES cart's
+	 * saves are its battery-backed WRAM. */
+	if (savedataOut) {
+		intfn Count = (intfn)proc(h, "GetSaveDataFileCount");
+		ptrfn_i Name = (ptrfn_i)proc(h, "GetSaveDataFileName");
+		i64fn_i Size = (i64fn_i)proc(h, "GetSaveDataFileSize");
+		ptrfn_i Data = (ptrfn_i)proc(h, "GetSaveDataFileBuffer");
+		int n = Count ? Count() : 0;
+		printf("savedataFiles=%d\n", n);
+		if (n > 0) {
+			FILE *of = fopen(savedataOut, "wb");
+			if (!of) { fprintf(stderr, "cannot write %s\n", savedataOut); return 1; }
+			fwrite((const void *)Data(0), 1, (size_t)Size(0), of);
+			fclose(of);
+			printf("savedataName=%s\n", (const char *)Name(0));
+		}
+	}
+
 	wbx_deactivate_host(h, &r); wbx_destroy_host(h, &r);
-	free(rom); free(st.b);
+	free(rom); free(st.b); free(saveBytes);
 	return 0;
 }
