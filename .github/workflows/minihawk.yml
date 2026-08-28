@@ -137,7 +137,7 @@ jobs:
 
       - name: Build the miniHawk solution
         working-directory: minihawk-checkout
-        run: dotnet build source/Chimera.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
+        run: dotnet build source/gui/Chimera.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
 
       - name: Cache the guest toolchain
         uses: actions/cache@v4
