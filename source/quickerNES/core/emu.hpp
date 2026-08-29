@@ -38,6 +38,20 @@ class Emu
   // row_bytes is the number of bytes to get to the next line (positive or negative).
   void set_pixels(void *pixels, long row_bytes);
 
+  // Turn pixel output on and off without giving up the buffer. With it off the
+  // PPU writes no pixels and runs its sprite-zero-hit detection through its own
+  // mini offscreen buffer instead, so the 6502 sees exactly the same $2002 -
+  // the frame costs less and the machine does not notice.
+  //
+  // emulate_skip_frame does the same thing to the pixels, but it reaches past
+  // Emu straight into the Core, which means no sound is drained for that frame.
+  // This is for the caller who wants the frame's audio and not its picture: a
+  // frontend fast-forwarding through a movie.
+  void set_rendering(bool on)
+  {
+    host_pixels = on ? (char *)pixels_base_ptr + emu.ppu.host_row_bytes : NULL;
+  }
+
   // Size of image generated in graphics buffer
   static const uint16_t image_width = 256;
   static const uint16_t image_height = 240;

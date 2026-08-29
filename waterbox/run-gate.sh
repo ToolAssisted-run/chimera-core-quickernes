@@ -47,6 +47,10 @@ native="$nat/libquicknes.so"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 digests() { grep -E '^(frames|videoHash|audioHash|lagFrames|domain\[)'; }
+# What a turbo run can be held to: everything except the whole-run video hash,
+# which a run that skipped the first half cannot possibly match - the second
+# half it did draw is compared instead.
+turboDigests() { grep -E '^(frames|tailVideoHash|audioHash|lagFrames|domain\[)'; }
 
 ok=0
 failed=0
@@ -80,6 +84,22 @@ for rom in "${roms[@]}"; do
 		report "$name:savestate" PASS "per-frame round-trip is lossless"
 	else
 		report "$name:savestate" FAIL "$(diff "$work/box.txt" "$work/rr.txt" | tr '\n' ' ' | head -c 120)"
+	fi
+
+	# Turbo: run the same frames with the core's drawing switched off for the
+	# first half and back on for the second. The machine, the sound, the lag
+	# count and every picture of that second half must be what they would have
+	# been. A core that got this wrong shows up here as a different picture even
+	# when every byte of RAM still agrees.
+	if "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" 2>/dev/null | turboDigests > "$work/norm.txt" &&
+	   "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" --turbo 2>/dev/null | turboDigests > "$work/turbo.txt"; then
+		if cmp -s "$work/norm.txt" "$work/turbo.txt"; then
+			report "$name:turbo" PASS "$frames frames, half of them undrawn, same machine and same pictures"
+		else
+			report "$name:turbo" FAIL "$(diff "$work/norm.txt" "$work/turbo.txt" | tr '\n' ' ' | head -c 120)"
+		fi
+	else
+		report "$name:turbo" FAIL "turbo runner error"
 	fi
 
 	# The optional tooling exports the frontend probes for: absence is allowed,

@@ -41,6 +41,13 @@ namespace
 	uint32_t g_palette[512];
 	int g_joypadReadThisFrame = 0;
 
+	/* Turbo. The host sets this to 0 when nobody is going to look at the frame
+	 * (seeking, fast-forward), and the PPU stops writing pixels. It is host
+	 * policy rather than machine state, so it lives outside the savestate: a
+	 * state taken while seeking must not put the machine back into turbo when
+	 * it is loaded to be looked at. */
+	ECL_INVISIBLE int g_render = 1;
+
 	/* ---- controller ports ----
 	 * What is plugged into each port is a machine-shaping choice, so it arrives
 	 * as a user setting (mounted "settings" JSON, read at Init) rather than being
@@ -283,6 +290,12 @@ ECL_EXPORT void FrameAdvance(uint64_t input)
 	const uint32_t latch = (g_controllerType == quickerNES::Core::controllerType_t::arkanoidNES_t
 		|| g_controllerType == quickerNES::Core::controllerType_t::arkanoidFamicom_t)
 		? arkanoidLatch(arkPosition) : 0;
+	/* quickerNES has carried a render-off path for years and keeps it honest:
+	 * with no pixel buffer the PPU still runs its sprite-zero-hit detection
+	 * through a mini offscreen buffer, and the sprite-overflow flag never
+	 * depended on drawing at all. So the 6502 sees the same $2002 either way,
+	 * which is the whole requirement. */
+	g_emu->set_rendering(g_render);
 	g_emu->emulate_frame(pad1, pad2, latch, arkFire);
 
 	// Lag detection: a frame that never polled the joypad is a lag frame. The
@@ -290,17 +303,28 @@ ECL_EXPORT void FrameAdvance(uint64_t input)
 	// zero, not against the previous frame's value.
 	g_joypadReadThisFrame = (g_emu->get_joypad_read_count() != 0);
 
-	// Video: map the paletted frame into BGRA.
-	const int pitch = g_emu->frame().pitch;
-	const unsigned char *src = g_emu->frame().pixels;
-	const short *lut = g_emu->frame().palette;
-	uint32_t *dst = g_video;
-	for (int y = 0; y < FbHeight; y++, src += pitch)
-		for (int x = 0; x < FbWidth; x++) *dst++ = g_palette[lut[src[x]]];
+	// Video: map the paletted frame into BGRA. In turbo there is nothing to
+	// map - the buffer keeps the last frame that was drawn, which is what the
+	// video hardware would be scanning out anyway.
+	if (g_render)
+	{
+		const int pitch = g_emu->frame().pitch;
+		const unsigned char *src = g_emu->frame().pixels;
+		const short *lut = g_emu->frame().palette;
+		uint32_t *dst = g_video;
+		for (int y = 0; y < FbHeight; y++, src += pitch)
+			for (int x = 0; x < FbWidth; x++) *dst++ = g_palette[lut[src[x]]];
+	}
 
 	// Audio: drain this frame's samples.
 	g_audioSamples = g_emu->read_samples(g_audio, MaxSamplesPerFrame);
 }
+
+/* Turbo (optional guest ABI group): while off the core must produce no picture
+ * and must otherwise be exactly the machine it would have been. run-gate.sh's
+ * turbo leg is the proof - N unrendered frames plus one rendered one come out
+ * byte for byte the same machine, and the same picture, as N+1 drawn ones. */
+ECL_EXPORT void SetRenderingEnabled(int on) { g_render = on != 0; }
 
 ECL_EXPORT uint32_t *GetVideoBgra(void) { return g_video; }
 ECL_EXPORT int16_t *GetAudio(void) { return g_audio; }
