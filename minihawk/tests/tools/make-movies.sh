@@ -10,16 +10,16 @@
 # Usage:
 #   ./make-movies.sh                        # free-to-distribute set (default)
 #   ./make-movies.sh --set full             # every test whose rom is available
-#   ./make-movies.sh --minihawk-root <path>
+#   ./make-movies.sh --chimera-root <path>
 set -u
 
 set_name=free
-minihawk_root=""
+chimera_root=""
 package_dir=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--set) set_name="$2"; shift ;;
-		--minihawk-root) minihawk_root="$2"; shift ;;
+		--chimera-root) chimera_root="$2"; shift ;;
 		--package) package_dir="$2"; shift ;;
 		*) echo "unknown option: $1" >&2; exit 2 ;;
 	esac
@@ -33,14 +33,14 @@ suite="$tests_dir/suite"
 out_dir="$tests_dir/movies"
 mkdir -p "$out_dir"
 
-if [ -z "$minihawk_root" ]; then
-	for candidate in "$repo_root/../miniHawk" "$repo_root/../BizHawk" "$HOME/miniHawk"; do
-		[ -d "$candidate" ] && { minihawk_root="$candidate"; break; }
+if [ -z "$chimera_root" ]; then
+	for candidate in "$repo_root/../chimera" "$HOME/chimera"; do
+		[ -d "$candidate" ] && { chimera_root="$candidate"; break; }
 	done
 fi
-[ -n "$minihawk_root" ] && [ -d "$minihawk_root" ] || { echo "miniHawk checkout not found; pass --minihawk-root" >&2; exit 1; }
-minihawk_root="$(cd "$minihawk_root" && pwd)"
-dll="$minihawk_root/build/dll"
+[ -n "$chimera_root" ] && [ -d "$chimera_root" ] || { echo "chimera checkout not found; pass --chimera-root" >&2; exit 1; }
+chimera_root="$(cd "$chimera_root" && pwd)"
+dll="$chimera_root/build/dll"
 
 # the built package: core.wbx + waterbox.config, which is where the controller
 # declaration the movies are keyed to comes from
@@ -57,8 +57,8 @@ converter="$here/sol2tas.exe"
 if [ ! -f "$converter" ] || [ "$here/sol2tas.cs" -nt "$converter" ]; then
 	echo "building sol2tas..."
 	mcs -langversion:latest -out:"$converter" "$here/sol2tas.cs" \
-		-r:"$dll/BizHawk.Emulation.Common.dll" -r:"$dll/BizHawk.Client.Common.dll" \
-		-r:"$dll/BizHawk.Common.dll" -r:"$dll/BizHawk.BizInvoke.dll" -r:"$dll/Newtonsoft.Json.dll" \
+		-r:"$dll/Chimera.Emulation.Common.dll" -r:"$dll/Chimera.Client.Common.dll" \
+		-r:"$dll/Chimera.Common.dll" -r:"$dll/Chimera.NativeInvoke.dll" -r:"$dll/Newtonsoft.Json.dll" \
 		-r:System.IO.Compression.dll -r:System.IO.Compression.FileSystem.dll || exit 1
 fi
 
