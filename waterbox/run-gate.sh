@@ -117,6 +117,58 @@ for rom in "${roms[@]}"; do
 	fi
 done
 
+# ---- what a project PLUGS IN decides what a movie has columns for ----------
+# This package declares the union of every peripheral its two ports can hold -
+# four players' pads, both Arkanoid fire buttons, both paddles - because a
+# declaration is static and cannot know what a project chose. Every NES project
+# therefore showed all thirty-four columns whatever was in its ports: players
+# three and four with no Four Score anywhere, a paddle with no Arkanoid.
+#
+# The core answers IsButtonActive/IsAxisActive once, after Init, and the engine
+# builds the entry from what the machine HAS. So the shape of one recorded frame
+# is the whole claim, and it is exact rather than approximate: a column that
+# should not be there is a character that should not be there.
+#
+# Needs the engine's headless runner, which lives in the chimera checkout this
+# repository is a submodule of.
+chimera_root="${CHIMERA_ROOT:-$root/../../..}"
+crun="$chimera_root/build/meson-linux/chimera-run"
+cpkg="$chimera_root/build/Cores/quickernes.chimeraCore"
+if [ ! -x "$crun" ] || [ ! -f "$cpkg" ]; then
+	report "ports:columns" SKIP "needs chimera-run and a built package (set CHIMERA_ROOT)"
+else
+	printf '[Input]\nLogKey:#\n' > "$work/none.txt"
+	shape() { # <settings json> -> the one entry a frame records
+		"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/none.txt" \
+			--settings "$1" --frames 1 --record "$work/shape.txt" >/dev/null 2>&1 \
+			&& head -1 "$work/shape.txt"
+	}
+	# a pad is eight columns; a paddle is its value and a fire button. The
+	# leading "||" is the opening pipe and the (empty) console group.
+	wrong=""
+	check() { # <settings> <expected entry> <what it means>
+		got="$(shape "$1")"
+		[ "$got" = "$2" ] || wrong="$wrong; $3 gave [${got:-nothing}] want [$2]"
+	}
+	check '{}' \
+		'||........|' "one pad in port one"
+	check '{"port2":"gamepad"}' \
+		'||........|........|' "a pad in each port"
+	check '{"port1":"fourScore","port2":"fourScore"}' \
+		'||........|........|........|........|' "a Four Score"
+	check '{"port1":"arkanoidNES"}' \
+		'|||    0,.|' "an Arkanoid, which has no d-pad at all"
+	check '{"port1":"arkanoidFamicom"}' \
+		'||........||    0,.|' "a Famicom Arkanoid, which keeps the pad"
+	check '{"port1":"none"}' \
+		'||' "nothing plugged in anywhere"
+	if [ -z "$wrong" ]; then
+		report "ports:columns" PASS "a movie carries the controls the machine has, and no others"
+	else
+		report "ports:columns" FAIL "${wrong#; }"
+	fi
+fi
+
 echo ""
 echo "$ok ok, $failed failed"
 [ "$failed" -gt 0 ] && exit 1

@@ -242,6 +242,61 @@ ECL_EXPORT void PutSettings(int length)
 	wbx_settings_use_file();
 }
 
+/* WHICH DECLARED CONTROLS THIS MACHINE HAS.
+ *
+ * waterbox.config declares the union of every peripheral these two ports can
+ * hold - four players' pads, the Arkanoid fire buttons, the Arkanoid paddles -
+ * because a declaration is static and cannot know what a project plugged in.
+ * That made every NES project show all thirty-four columns whatever was in its
+ * ports: players three and four with no Four Score anywhere, a paddle with no
+ * Arkanoid controller, a fire button belonging to neither.
+ *
+ * The port settings are read HERE, so here is the only place the answer is not
+ * a copy of somebody else's reasoning. The frontend asks once, after Init.
+ *
+ * The wire is untouched: index 8 is P2 A whether or not port two holds
+ * anything, so packGamepad and every bit position below stay exactly as they
+ * are. What changes is only what a person is shown and what a movie writes. */
+namespace {
+	/* Which players a port answers for, read off the PACKING below rather than
+	 * assumed: a port latching a gamepad carries its near player, a Four Score
+	 * carries its near player and its far one (shiftNear/shiftFar in
+	 * FrameAdvance), an Arkanoid on the NES protocol occupies port one entirely
+	 * and latches no pad at all. Anything the packing does not reach is a
+	 * column nobody could ever move. */
+	bool playerLive(int player) /* 1..4 */
+	{
+		switch (player)
+		{
+			case 1: return g_port1 == portGamepad || g_port1 == portFourScore
+				|| g_port1 == portArkanoidFamicom;
+			case 2: return g_port2 == portGamepad || g_port2 == portFourScore;
+			case 3: return g_port1 == portFourScore;
+			case 4: return g_port2 == portFourScore;
+			default: return false;
+		}
+	}
+}
+
+ECL_EXPORT int IsButtonActive(int index)
+{
+	/* bits 0-31 are the four players' pads, in declaration order */
+	if (index >= 0 && index < 32) return playerLive(index / 8 + 1) ? 1 : 0;
+	/* bit 32 is P2 Fire (Arkanoid NES), bit 33 P3 Fire (Arkanoid Famicom) -
+	 * the two protocols the machine can speak, one port at a time */
+	if (index == 32) return g_port1 == portArkanoidNES ? 1 : 0;
+	if (index == 33) return g_port1 == portArkanoidFamicom ? 1 : 0;
+	return 0;
+}
+
+ECL_EXPORT int IsAxisActive(int index)
+{
+	/* the paddles, in the same order and for the same two protocols */
+	if (index == 0) return g_port1 == portArkanoidNES ? 1 : 0;
+	if (index == 1) return g_port1 == portArkanoidFamicom ? 1 : 0;
+	return 0;
+}
+
 /* Analog controls can't ride in the button mask; the host pushes each declared
  * axis here just before the frame it belongs to. Index order is
  * waterbox.config's input.axes: 0 = P2 Paddle, 1 = P3 Paddle. */
