@@ -79,12 +79,18 @@ fi
 # under version control has no business carrying a version that changes with every
 # commit. waterbox.config's "version" is what the frontend shows and what a movie
 # records as the core's identity.
-python3 - "$staging/waterbox.config" "$core_version" <<'PYVER'
+# When that commit was made, beside it (chimera issue #67): a commit says which
+# version this is and nothing about which of two is newer. The COMMIT's date, in
+# UTC, and never the build's: the same commit must still make the same package.
+core_version_date="$(TZ=UTC git -C "$here/.." log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd HEAD 2>/dev/null || true)"
+python3 - "$staging/waterbox.config" "$core_version" "$core_version_date" <<'PYVER'
 import json, sys
-path, version = sys.argv[1], sys.argv[2]
+path, version, date = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path) as f:
     cfg = json.load(f)
 cfg["version"] = version
+if date:
+    cfg["versionDate"] = date
 with open(path, "w") as f:
     json.dump(cfg, f, indent=2)
     f.write("\n")
