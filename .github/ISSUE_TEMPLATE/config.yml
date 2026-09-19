@@ -1,0 +1,8 @@
+# One inbox: a problem with this core is reported in the frontend's repository,
+# where the template asks for what a fix needs, and the fixing commit here cites
+# ToolAssisted-run/chimera#N.
+blank_issues_enabled: false
+contact_links:
+  - name: Report it in chimera
+    url: https://github.com/ToolAssisted-run/chimera/issues/new/choose
+    about: Bugs, crashes and requests for every core are filed in the chimera repository.
