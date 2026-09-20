@@ -103,25 +103,55 @@ for rom in "${roms[@]}"; do
 	# count and every picture of that second half must be what they would have
 	# been. A core that got this wrong shows up here as a different picture even
 	# when every byte of RAM still agrees.
-	if "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" 2>/dev/null | turboDigests > "$work/norm.txt" &&
-	   "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" --turbo 2>/dev/null | turboDigests > "$work/turbo.txt"; then
-		if cmp -s "$work/norm.txt" "$work/turbo.txt"; then
-			report "$name:turbo" PASS "$frames frames, half of them undrawn, same machine and same pictures"
-		else
+	#
+	# And the first half really must have gone undrawn. The comparison alone is
+	# blind to that: it is held over tailVideoHash, the second half only, so a
+	# SetRenderingEnabled that did nothing at all would leave every compared
+	# digest identical and this leg would report "half of them undrawn" about a
+	# run that drew every frame. Stubbing that export to a no-op in the sibling
+	# stella core, which carries the same harness, gave a fully green gate. The
+	# whole-run videoHash covers the first half too, so the two runs cannot
+	# agree on it unless the picture was never switched off.
+	if "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" 2>/dev/null > "$work/norm.raw" &&
+	   "$nat/run-wbx" "$gst/core.wbx" "$rom" "$frames" --turbo 2>/dev/null > "$work/turbo.raw"; then
+		turboDigests < "$work/norm.raw" > "$work/norm.txt"
+		turboDigests < "$work/turbo.raw" > "$work/turbo.txt"
+		nvh="$(grep -m1 '^videoHash=' "$work/norm.raw")"
+		tvh="$(grep -m1 '^videoHash=' "$work/turbo.raw")"
+		if ! cmp -s "$work/norm.txt" "$work/turbo.txt"; then
 			report "$name:turbo" FAIL "$(diff "$work/norm.txt" "$work/turbo.txt" | tr '\n' ' ' | head -c 120)"
+		elif [ -z "$nvh" ] || [ -z "$tvh" ]; then
+			report "$name:turbo" FAIL "no whole-run videoHash to tell a skipped frame from a drawn one"
+		elif [ "$nvh" = "$tvh" ]; then
+			report "$name:turbo" FAIL "the turbo run drew every frame - nothing was skipped"
+		else
+			report "$name:turbo" PASS "$frames frames, half of them really undrawn, same machine and same pictures"
 		fi
 	else
 		report "$name:turbo" FAIL "turbo runner error"
 	fi
 
-	# The optional tooling exports the frontend probes for: absence is allowed,
-	# but a core that claims a surface must render one.
+	# The tooling exports the frontend probes for. This core HAS all four
+	# families - surfaces, registers, buses and a trace - so "not supported by
+	# this core" is never the truth here, it is the answer run-tooling gives
+	# when a symbol will not resolve. A thunk pool that runs dry, a rename, a
+	# dropped ECL_EXPORT: all of them read as absence, and absence used to be
+	# allowed. It was allowed so completely that renaming GetSurfaceCount,
+	# GetRegisterCount and GetBusCount all at once still reported PASS, with
+	# "0 tooling entries" in the detail nobody reads. So the leg now insists
+	# that every family answers, and that something came back.
 	if [ -x "$nat/run-tooling" ]; then
 		if "$nat/run-tooling" "$gst/core.wbx" "$rom" 120 > "$work/tool.txt" 2>&1; then
+			entries="$(grep -c '^  \[' "$work/tool.txt")"
+			missing="$(grep 'not supported by this core' "$work/tool.txt" | cut -d: -f1 | tr '\n' ' ')"
 			if grep -q "RENDER FAILED" "$work/tool.txt"; then
 				report "$name:tooling" FAIL "a declared surface did not render"
+			elif [ -n "$missing" ]; then
+				report "$name:tooling" FAIL "the core stopped answering for: ${missing% }"
+			elif [ "$entries" -eq 0 ]; then
+				report "$name:tooling" FAIL "every family answered but listed nothing"
 			else
-				report "$name:tooling" PASS "$(grep -c '^  \[' "$work/tool.txt") tooling entries reported"
+				report "$name:tooling" PASS "$entries tooling entries reported, all four families answering"
 			fi
 		else
 			report "$name:tooling" FAIL "runner error"
@@ -168,10 +198,14 @@ else
 		'||........|........|' "a pad in each port"
 	check '{"port1":"fourScore","port2":"fourScore"}' \
 		'||........|........|........|........|' "a Four Score"
+	# A paddle at rest records its NEUTRAL, not zero: waterbox.config declares
+	# min 0, max 160 and neutral 80 for both paddles, and the core starts them
+	# there too (waterbox.cpp's g_axis). Expecting 0 was expecting the paddle
+	# to be jammed against the left wall on frame one.
 	check '{"port1":"arkanoidNES"}' \
-		'|||    0,.|' "an Arkanoid, which has no d-pad at all"
+		'|||   80,.|' "an Arkanoid, which has no d-pad at all"
 	check '{"port1":"arkanoidFamicom"}' \
-		'||........||    0,.|' "a Famicom Arkanoid, which keeps the pad"
+		'||........||   80,.|' "a Famicom Arkanoid, which keeps the pad"
 	check '{"port1":"none"}' \
 		'||' "nothing plugged in anywhere"
 	if [ -z "$wrong" ]; then
