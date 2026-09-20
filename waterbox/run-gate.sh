@@ -181,6 +181,48 @@ else
 	fi
 fi
 
+# ---- memory callbacks fire, for the right address, and only for it ---------
+#
+# The watched addresses live in the GUEST (source/quickerNES/core/memHook.hpp):
+# the core compares and only a match crosses the sandbox. The failure this leg
+# exists to catch is not a crash - it is SILENCE. A hook that quietly stops
+# firing looks exactly like a game that stopped touching the address, and a
+# script counting zero is indistinguishable from a feature that was removed.
+# So the numbers are held against each other: a wildcard tells us what the
+# machine really does, and a single-address watch has to agree with it.
+if [ ! -x "$crun" ] || [ ! -f "$cpkg" ]; then
+	report "memhook:callbacks" SKIP "needs chimera-run and a built package (set CHIMERA_ROOT)"
+else
+	printf '|........|\n%.0s' $(seq 1 200) > "$work/mh.txt"
+	mh() { # <spec> -> "hits wrong"
+		"$crun" "$cpkg" "$root/tests/roms/sprilo.nes" "$work/mh.txt" \
+			--frames 200 --memhook "$1" 2>/dev/null \
+			| awk -F= '/^memhookHits=/{h=$2} /^memhookWrongAddr=/{w=$2} END{print h" "w}'
+	}
+	bad=""
+	# 0x2002 is the PPU status register, which a running NES game polls every
+	# frame: a read watch there must fire, and never for another address.
+	set -- $(mh "System Bus:0x2002:r")
+	readHits="${1:-0}"; readWrong="${2:-1}"
+	[ "$readHits" -gt 0 ] || bad="$bad; a read watch on 0x2002 fired $readHits times"
+	[ "$readWrong" = 0 ] || bad="$bad; a read watch on 0x2002 saw $readWrong other addresses"
+	# the wildcard: every instruction, and the run still completes
+	set -- $(mh "System Bus:*:x")
+	anyHits="${1:-0}"
+	[ "$anyHits" -gt 100000 ] || bad="$bad; a wildcard execute watch fired only $anyHits times in 200 frames"
+	# an address the 6502 cannot execute: the hook must stay quiet rather than
+	# report everything. This is the leg that fails if the guest ever loses the
+	# table and starts calling out unconditionally.
+	set -- $(mh "System Bus:0x0001:x")
+	quietHits="${1:-0}"
+	[ "$quietHits" = 0 ] || bad="$bad; an execute watch on 0x0001 fired $quietHits times"
+	if [ -z "$bad" ]; then
+		report "memhook:callbacks" PASS "read 0x2002 x$readHits, wildcard exec x$anyHits, quiet address silent"
+	else
+		report "memhook:callbacks" FAIL "${bad#; }"
+	fi
+fi
+
 # ---- save data: out, and back in -------------------------------------------
 #
 # A battery-backed cart keeps its saves in WRAM. They leave through the savedata

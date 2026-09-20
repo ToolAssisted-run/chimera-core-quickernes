@@ -55,6 +55,7 @@ if meson.is_cross_build() or get_option('waterbox')
     'source/quickerNES/core/cpuFlat.cpp',
     'source/quickerNES/core/cpuPaged.cpp',
     'source/quickerNES/core/emu.cpp',
+    'source/quickerNES/core/memHook.cpp',
     'source/quickerNES/core/mappers/mapper.cpp',
     'source/quickerNES/core/ppu/ppu.cpp',
     'source/quickerNES/core/ppu/ppuImpl.cpp',
@@ -103,7 +104,10 @@ if meson.is_cross_build() or get_option('waterbox')
     executable('core', core_sources + files('waterbox/waterbox.cpp'),
       name_suffix: 'wbx',
       include_directories: [core_inc, include_directories('waterbox')],
-      cpp_args: core_defs + ['-fno-exceptions', '-fno-rtti'],
+      # The memory hook's gate lives outside the savestate in the guest, the
+      # same way the turbo flag and the settings buffer do: a machine that is
+      # being watched and one that is not must produce identical states.
+      cpp_args: core_defs + ['-fno-exceptions', '-fno-rtti', '-D_QUICKERNES_MEMHOOK_INVISIBLE'],
       link_args: [
         '-static', '-no-pie',
         '-Wl,--eh-frame-hdr', '-Wl,-O2', '-Wl,--no-relax',

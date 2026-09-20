@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <emu.hpp>
+#include <memHook.hpp>
 
 namespace
 {
@@ -633,6 +634,26 @@ namespace
 	const int64_t kBusSizes[] = { 0x10000, 0x4000 };
 	constexpr int kBusCount = 2;
 
+	/* ---- the memory hook ----
+	 *
+	 * Which addresses are watched lives HERE, in the machine, not in the host:
+	 * the core compares and only a match crosses the sandbox. See
+	 * source/quickerNES/core/memHook.hpp for the gate and the table's shape.
+	 *
+	 * INVISIBLE: the table is a debugging tool, not machine state, so it must
+	 * never enter a savestate. A watched machine and an unwatched one produce
+	 * byte-identical states, and a state made in a run with other watches does
+	 * not quietly bring them along.
+	 *
+	 * There is one scope here, the CPU bus. The PPU bus is not hooked: its
+	 * traffic is the PPU's own fetches, which the CPU never issues, and the
+	 * host is told that by the scope list rather than by a callback that never
+	 * fires. */
+	constexpr int kMemHookScopeCount = 1;
+	const char *const kMemHookScopeNames[] = { "System Bus" };
+	const int64_t kMemHookScopeSizes[] = { 0x10000 };
+	ECL_INVISIBLE uint8_t g_memHookTable[0x10000];
+
 	/* Trace ring buffer: the tracer runs inside the guest and appends NUL-
 	 * terminated lines here; the host drains it once per frame. Crossing the
 	 * sandbox boundary per instruction would be unusably slow. */
@@ -707,6 +728,48 @@ ECL_EXPORT void PokeBus(int bus, int addr, int value)
 {
 	if (!g_emu) return;
 	if (bus == 0) g_emu->poke_prg(addr & 0xFFFF, (uint8_t)value);
+}
+
+/* ---- the memory hook ----
+ *
+ * The host installs its dispatcher once, names what it wants watched whenever
+ * a script registers or drops a callback, and is called only when the machine
+ * actually touches one of those addresses. */
+ECL_EXPORT int GetMemHookScopeCount(void) { return kMemHookScopeCount; }
+ECL_EXPORT const char *GetMemHookScopeName(int i)
+{
+	return (i >= 0 && i < kMemHookScopeCount) ? kMemHookScopeNames[i] : nullptr;
+}
+ECL_EXPORT int64_t GetMemHookScopeSize(int i)
+{
+	return (i >= 0 && i < kMemHookScopeCount) ? kMemHookScopeSizes[i] : 0;
+}
+/* this core runs its own interpreter, so it can see every instruction fetch */
+ECL_EXPORT int GetMemHookExecutes(void) { return 1; }
+
+ECL_EXPORT void SetMemHook(uint64_t bridge)
+{
+	quickerNES::memHookBridge = (quickerNES::memHookBridgeFn)(uintptr_t)bridge;
+	quickerNES::memHookTable = g_memHookTable;
+}
+
+ECL_EXPORT void ClearMemHookWatches(void)
+{
+	memset(g_memHookTable, 0, sizeof g_memHookTable);
+	quickerNES::memHookWild = 0;
+	quickerNES::memHookAny = 0;
+}
+
+/* addr < 0 means every address in the scope (the wildcard registrations).
+ * Returns 0 when the scope is not one this core has. */
+ECL_EXPORT int SetMemHookWatch(int scope, int64_t addr, int flags)
+{
+	if (scope != 0) return 0;
+	const uint8_t f = (uint8_t)(flags & 7);
+	if (addr < 0) quickerNES::memHookWild |= f;
+	else g_memHookTable[(uint32_t)addr & 0xFFFF] |= f;
+	quickerNES::memHookAny |= f;
+	return 1;
 }
 
 /* ---- instruction trace ---- */

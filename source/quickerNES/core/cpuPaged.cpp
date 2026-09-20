@@ -2,6 +2,7 @@
 
 #include "core.hpp"
 #include "cpu.hpp"
+#include "memHook.hpp"
 #include <limits.h>
 #include <stdio.h>
 #ifdef _QUICKERNES_STUDY_TRACERS
@@ -227,8 +228,8 @@ namespace quickerNES
 
 // static void log_read( int32_t opcode ) { LOG_FREQ( "read", 256, opcode ); }
 
-#define READ_LIKELY_PPU(addr) (NES_CPU_READ_PPU(this, (addr), (clock_count)))
-#define READ(addr) (NES_CPU_READ(this, (addr), (clock_count)))
+#define READ_LIKELY_PPU(addr) MEMHOOK_R((addr), NES_CPU_READ_PPU(this, (addr), (clock_count)))
+#define READ(addr) MEMHOOK_R((addr), NES_CPU_READ(this, (addr), (clock_count)))
 // A CPU write can hit a mapper register and remap PRG code pages. The main loop
 // caches the current code page pointer across instructions, so it must drop that
 // cache after writes that can reach the cartridge. Only cartridge space
@@ -243,10 +244,12 @@ namespace quickerNES
     CPU_PAGE_CACHE_INVALIDATE(addr)                     \
   }
 
-#define READ_LOW(addr) (low_mem[int32_t(addr)])
-#define WRITE_LOW(addr, data) (void)(READ_LOW(addr) = (data))
+#define READ_LOW(addr) MEMHOOK_R((addr), low_mem[int32_t(addr)])
+#define WRITE_LOW(addr, data) (void)(low_mem[int32_t(addr)] = MEMHOOK_W((addr), (data)))
 
 #define READ_PROG(addr) (code_map[(addr) >> page_bits][addr])
+/* the data-read form: READ_PROG itself must stay an lvalue for READ_PROG16 */
+#define READ_PROG_DATA(addr) MEMHOOK_R((addr), READ_PROG(addr))
 #define READ_PROG16(addr) GET_LE16(&READ_PROG(addr))
 
 #define SET_SP(v) (sp = ((v) + 1) | 0x100)
@@ -271,6 +274,12 @@ namespace quickerNES
     nz |= ~in & st_z;                   \
   } while (0)
 
+// Not the machine running: nothing in the emulator calls these two - they
+// exist as the CPU's own bus accessors. A memory callback reports what the
+// PROGRAM did, so they carry no hook (MEMHOOK_* reads `Hooks`, which for an
+// untemplated function has to be spelled out).
+static constexpr bool Hooks = false;
+
 inline int32_t Cpu::read(nes_addr_t addr)
 {
   return READ(addr);
@@ -289,6 +298,7 @@ inline void Cpu::write(nes_addr_t addr, int value)
   if ((addr) >= 0x4020) cachedPageIdx = ~0u;
 
 // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
+template <bool Hooks>
 #if defined(__GNUC__) && !defined(__clang__)
 __attribute__((optimize("align-functions=1024")))
 #endif
@@ -432,6 +442,11 @@ loop:
   if (clock_count >= clock_limit) [[unlikely]]
     goto stop;
 
+  // The execute hook. Fires for the address the instruction was fetched from
+  // (pc was post-incremented), before it runs. The gate is a byte load: a run
+  // with nothing watched never reaches the table.
+  MEMHOOK_X(pc - 1, opcode);
+
 // If traceback support is enabled, trigger it here
 #ifdef _QUICKERNES_ENABLE_TRACEBACK_SUPPORT
   if (tracecb)
@@ -560,7 +575,7 @@ loop:
     HANDLE_PAGE_CROSSING(data);
     int32_t temp = data;
     data += msb * 0x100;
-    a = nz = READ_PROG(uint16_t(data));
+    a = nz = READ_PROG_DATA(uint16_t(data));
     if ((uint32_t)(data - 0x2000) >= 0x6000)
       goto loop;
     if (temp & 0x100)
@@ -578,7 +593,7 @@ loop:
     HANDLE_PAGE_CROSSING(data);
     int32_t temp = data;
     data += msb * 0x100;
-    a = nz = READ_PROG(uint16_t(data));
+    a = nz = READ_PROG_DATA(uint16_t(data));
     if ((uint32_t)(data - 0x2000) >= 0x6000)
       goto loop;
     if (temp & 0x100)
@@ -1405,5 +1420,10 @@ end:
 
   return result;
 }
+
+// Both copies: one with the memory hook compiled in, one without a trace
+// of it. Cpu::run picks per call.
+template Cpu::result_t Cpu::runPaged<false>(nes_time_t);
+template Cpu::result_t Cpu::runPaged<true>(nes_time_t);
 
 } // namespace quickerNES

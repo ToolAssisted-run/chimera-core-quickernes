@@ -1,5 +1,7 @@
 #pragma once
 
+#include "memHook.hpp"
+
 // NES 6502 CPU emulator
 // Emu 0.7.0
 
@@ -374,22 +376,32 @@ class Cpu
   };
 
   // This optimization is only possible with the GNU compiler -- MSVC does not allow function alignment
+  // Hooks: whether this copy of the interpreter carries the memory hook. Both
+  // copies exist in the binary and run() picks one per call, so a run with no
+  // callbacks registered executes an interpreter that has no hook in it at all
+  // - not a hook that is switched off. That is what makes the feature free
+  // when nobody asked for it (see memHook.hpp).
 #if defined(__GNUC__) || defined(__clang__)
-  result_t runPaged(nes_time_t end_time) __attribute__((aligned(1024)));
+  template <bool Hooks> result_t runPaged(nes_time_t end_time) __attribute__((aligned(1024)));
 #else
-  result_t runPaged(nes_time_t end_time);
+  template <bool Hooks> result_t runPaged(nes_time_t end_time);
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-  result_t runFlat(nes_time_t end_time) __attribute__((aligned(1024)));
+  template <bool Hooks> result_t runFlat(nes_time_t end_time) __attribute__((aligned(1024)));
 #else
-  result_t runFlat(nes_time_t end_time);
+  template <bool Hooks> result_t runFlat(nes_time_t end_time);
 #endif
 
   inline result_t run(nes_time_t end_time)
   {
-    if (_useFlatCodeMap == true) return runFlat(end_time);
-    return runPaged(end_time);
+    if (__builtin_expect(quickerNES::memHookAny != 0, 0))
+    {
+      if (_useFlatCodeMap == true) return runFlat<true>(end_time);
+      return runPaged<true>(end_time);
+    }
+    if (_useFlatCodeMap == true) return runFlat<false>(end_time);
+    return runPaged<false>(end_time);
   }
 
   nes_time_t time() const { return clock_count; }
