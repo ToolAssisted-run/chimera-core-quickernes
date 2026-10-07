@@ -2,9 +2,10 @@
 # Builds the quickerNES waterbox core package and installs it into a miniHawk
 # checkout as build/Cores/quickernes.chimeraCore.
 #
-# A package is exactly two files - core.wbx (fixed name) plus waterbox.config -
-# and miniHawk loads it through its one built-in generic adapter. There is no
-# managed assembly and no native library in a package any more.
+# A package is core.wbx (fixed name) and what declares it - waterbox.config,
+# the default keybindings, the file slots, the licences and a build.json - and
+# Chimera loads it through its one built-in generic adapter. There is no
+# managed assembly and no native library in a package.
 #
 # Usage: ./build-package.sh [-m <miniBox dir>] [-r <miniHawk root>] [-o <build dir>]
 set -eu

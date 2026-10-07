@@ -1,8 +1,10 @@
-# quickerNES as a miniHawk waterbox core
+# quickerNES as a Chimera waterbox core
 
-This is the live port. A miniHawk core package is exactly two files —
-`core.wbx` (the sandboxed guest binary) and `waterbox.config` — loaded by
-miniHawk's single built-in generic adapter. There is no managed assembly and no
+This is the live port. A Chimera core package is `core.wbx` (the sandboxed
+guest binary) and what declares it - `waterbox.config`, the default keybindings,
+the file slots, the licences and a `build.json` - loaded by Chimera's single
+built-in generic adapter (Chimera was called miniHawk when this was written,
+and file names here still say so). There is no managed assembly and no
 native library in a package; the retired format that had those is described in
 [`../minihawk/README.md`](../minihawk/README.md).
 
@@ -68,8 +70,8 @@ machine.
 
 | key | values | meaning |
 |---|---|---|
-| `port1` | `gamepad` (default), `fourscore`, `arkanoidNES`, `arkanoidFamicom` | peripheral in console port 1 |
-| `port2` | `none` (default), `gamepad`, `fourscore` | peripheral in console port 2 |
+| `port1` | `gamepad` (default), `none`, `fourScore`, `arkanoidNES`, `arkanoidFamicom` | peripheral in console port 1 |
+| `port2` | `none` (default), `gamepad`, `fourScore` | peripheral in console port 2 |
 
 The controller declaration is the *union* of what those peripherals need (four
 pads, two fire buttons, two paddle axes), because a package declares one

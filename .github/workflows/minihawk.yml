@@ -115,7 +115,7 @@ jobs:
         with:
           name: core-wbx
           path: |
-            waterbox/bin/core.wbx
+            build/meson-guest/core.wbx
             waterbox/waterbox.config
           retention-days: 90
 
