@@ -212,8 +212,8 @@ jobs:
   publish:
     # What the gates passed, published as this core's own release: a rolling
     # `dev` on every green push to main, an immutable `nightly-YYYY-MM-DD` from
-    # the scheduled run. Chimera ships no cores; its Core Manager downloads
-    # them from here.
+    # the scheduled run. Chimera ships no cores and downloads none: a user
+    # downloads the package from here and puts it in Chimera's Cores folder.
     #
     # The logic is Chimera's tools/publish-core.sh, called through one reusable
     # workflow, so all fifteen cores publish the same way and there is one place

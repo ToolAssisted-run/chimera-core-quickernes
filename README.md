@@ -12,6 +12,14 @@ quickerNES is an attempt to modernizing [quickNES](https://github.com/kode54/Qui
 
 The main aim is to improve the performance of headless re-recording for TASing and botting (See: [JaffarPlus](https://github.com/SergioMartin86/jaffarPlus)) purposes. However, if this work can help regular play emulation, then much better.
 
+Chimera core
+------------
+
+This repository is also the quickerNES core of [Chimera](https://github.com/ToolAssisted-run/chimera), a frontend for tool-assisted speedruns. The core is one file, `quickernes.chimeraCore`. Chimera downloads nothing: get the package from this repository's [Releases](https://github.com/ToolAssisted-run/chimera-core-quickernes/releases) page, or build it, and put it in Chimera's `Cores` folder (the folder beside `Chimera.exe`, or the one chosen in File > Core Manager > Change folder...). File > Core Manager lists what is there.
+
+- [docs/BUILDING.md](docs/BUILDING.md) - how to build the package, install it and run its gates.
+- [AGENTS.md](AGENTS.md) - an operating guide for an AI coding agent working in this repository.
+
 Improvements
 -------------
 
