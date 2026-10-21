@@ -1,0 +1,9 @@
+An NES controller, photographed by Evan-Amos (Vanamo Online Game Museum), from
+Wikimedia Commons: https://commons.wikimedia.org/wiki/File:Nintendo-Entertainment-System-NES-Controller-FL.jpg
+
+The photographer released this photograph into the public domain, worldwide.
+It is scaled down here to fit 640 by 640 pixels and saved as a PNG.
+
+The controller's design and the names and logos printed on it belong to
+their owners. The picture is here so that a player can see which button is
+which in Chimera's Config > Controls.

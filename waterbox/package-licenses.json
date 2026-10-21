@@ -25,6 +25,12 @@
       "url": "https://github.com/SergioMartin86/jaffarCommon",
       "commit": "{submodule:extern/jaffarCommon}",
       "file": "extern/jaffarCommon/LICENSE"
+    },
+    {
+      "name": "An NES controller, a photograph (pictures/nes-controller.png)",
+      "license": "Public domain",
+      "url": "https://commons.wikimedia.org/wiki/File:Nintendo-Entertainment-System-NES-Controller-FL.jpg",
+      "file": "pictures/nes-controller.txt"
     }
   ]
 }
