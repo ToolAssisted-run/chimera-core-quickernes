@@ -433,6 +433,22 @@ ECL_EXPORT int16_t *GetAudio(void) { return g_audio; }
 ECL_EXPORT int GetAudioSampleCount(void) { return g_audioSamples; }
 ECL_EXPORT int InputWasRead(void) { return g_joypadReadThisFrame; }
 
+/* Chimera's function to call at each latch of the controllers, so a Lua
+ * script's event.oninputpoll runs there (chimera#344). It is the same callback
+ * slot in every session and no savestate carries it. The core calls
+ * input_callback_cb at the latch (core.hpp, _QUICKERNES_ENABLE_INPUT_CALLBACK,
+ * which only this build defines), where BizHawk's QuickNES calls its own. */
+ECL_INVISIBLE static uintptr_t (*g_inputPoll)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+ECL_EXPORT void SetInputPollCallback(uint64_t fn)
+{
+	g_inputPoll = (uintptr_t (*)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t))(uintptr_t)fn;
+}
+static void input_latched(void)
+{
+	if (g_inputPoll)
+		g_inputPoll(0, 0, 0, 0, 0, 0);
+}
+
 /* --- save data (guest ABI: the savedata group) ---
  *
  * The user's way out, and the shape a project's way back in expects. A
@@ -505,6 +521,9 @@ ECL_EXPORT int GetMemoryDomainWritable(int i)
 }
 
 } // extern "C"
+
+// declared by core.hpp, outside extern "C"
+void (*input_callback_cb)(void) = input_latched;
 
 /* ===================== core-managed tooling (guest ABI v2) =====================
  *

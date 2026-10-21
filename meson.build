@@ -103,7 +103,10 @@ if meson.is_cross_build() or get_option('waterbox')
     executable('core', core_sources + files('waterbox/waterbox.cpp'),
       name_suffix: 'wbx',
       include_directories: [core_inc, include_directories('waterbox')],
-      cpp_args: core_defs + ['-fno-exceptions', '-fno-rtti'],
+      # _QUICKERNES_ENABLE_INPUT_CALLBACK calls input_callback_cb at each latch
+      # of the controllers (waterbox.cpp hands it to Chimera); it changes
+      # nothing in the machine, so the native reference goes without it
+      cpp_args: core_defs + ['-fno-exceptions', '-fno-rtti', '-D_QUICKERNES_ENABLE_INPUT_CALLBACK'],
       link_args: [
         '-static', '-no-pie',
         '-Wl,--eh-frame-hdr', '-Wl,-O2', '-Wl,--no-relax',

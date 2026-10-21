@@ -215,6 +215,29 @@ else
 	fi
 fi
 
+# ---- each latch of the controllers reaches Chimera as it happens -------------
+#
+# so a Lua script's event.oninputpoll runs there (chimera#344): every frame the
+# game read its pad has at least one latch, and counting them moves nothing.
+if [ ! -x "$crun" ] || [ ! -f "$cpkg" ]; then
+	report "engine:input-polls" SKIP "needs chimera-run and a built package (set CHIMERA_ROOT)"
+else
+	"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/none.txt" --frames 300 --record "$work/idle.txt" > "$work/idle.log" 2>&1
+	"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/idle.txt" \
+		--dump "RAM=$work/plain.ram" > "$work/plain.log" 2>&1
+	"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/idle.txt" --count-input-polls \
+		--dump "RAM=$work/polls.ram" --meta "$work/polls.meta" > "$work/polls.log" 2>&1
+	polls=$(sed -n 's/^inputPolls=//p' "$work/polls.meta" 2> /dev/null)
+	lags=$(sed -n 's/^lagFrames=//p' "$work/polls.meta" 2> /dev/null)
+	frames=$(sed -n 's/^frames=//p' "$work/polls.meta" 2> /dev/null)
+	if [ "${polls:-none}" != none ] && [ "${frames:-0}" = 300 ] && [ "${lags:-300}" -lt 300 ] \
+		&& [ "${polls:-0}" -ge $(( 300 - ${lags:-300} )) ] && [ -s "$work/plain.ram" ] && cmp -s "$work/plain.ram" "$work/polls.ram"; then
+		report "engine:input-polls" PASS "the game's latches of its pad reach Chimera as they happen: $polls in 300 frames, $lags of them lag frames; RAM is the run's without counting"
+	else
+		report "engine:input-polls" FAIL "inputPolls=${polls:-missing} frames=${frames:-?} lagFrames=${lags:-?}, or counting moved RAM; the runner said: $(tail -1 "$work/polls.log" 2> /dev/null)"
+	fi
+fi
+
 # ---- save data: out, and back in -------------------------------------------
 #
 # A battery-backed cart keeps its saves in WRAM. They leave through the savedata
