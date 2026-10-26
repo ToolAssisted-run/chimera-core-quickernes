@@ -234,9 +234,27 @@ start_test_job() { # index into job_* arrays
 		echo "meta=$meta_file"
 	} > "$job_file"
 
-	( cd "$repo_root" && MINIHAWK_JOB="$job_file" exec mono "$emu_hawk" "--headless" \
-		"--config=$cfg_run" "--core=$core_package" "--movie=${job_movies[$i]}" "--lua=$play_lua" \
-		"${job_roms[$i]}" ) > "$run_dir/$name.log" 2>&1 &
+	# A game runs only in a project (Chimera, 2026-10-26): the test's movie (its
+	# settings and input; it names no game file) and the rom, made into one
+	local proj_dir="$run_dir/$name.project"
+	rm -rf "$proj_dir" && mkdir -p "$proj_dir" && cp "${job_roms[$i]}" "$proj_dir/"
+	local settings
+	settings="$(python3 - "${job_movies[$i]}" "$proj_dir/movie.txt" <<'PYMOVIE'
+import json, sys
+movie = json.load(open(sys.argv[1], encoding="utf-8-sig"))
+open(sys.argv[2], "w").write(movie.get("input", ""))
+print(json.dumps(movie.get("settings", {})))
+PYMOVIE
+)"
+	if ! "$repo_root/build/dll/chimera-run" --new-project "$proj_dir/$name.chimeraProject" "$core_package" \
+		"$proj_dir/$(basename "${job_roms[$i]}")" "$proj_dir/movie.txt" --settings "$settings" > "$proj_dir/make.log" 2>&1; then
+		cp "$proj_dir/make.log" "$run_dir/$name.log"
+		( exit 1 ) &
+	else
+		( cd "$repo_root" && MINIHAWK_JOB="$job_file" exec mono "$emu_hawk" "--headless" \
+			"--config=$cfg_run" "--core=$core_package" "--lua=$play_lua" \
+			"--project=$proj_dir/$name.chimeraProject" ) > "$run_dir/$name.log" 2>&1 &
+	fi
 	run_names+=("$name"); run_pids+=($!); run_starts+=("$SECONDS")
 	run_outs+=("$out_file"); run_metas+=("$meta_file")
 }

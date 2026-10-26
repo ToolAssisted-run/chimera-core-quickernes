@@ -45,6 +45,27 @@ native="$nat/libquicknes.so"
 	echo "guest build missing: sh waterbox/setup-guest.sh && ninja -C build/meson-guest core.wbx" >&2; exit 1; }
 
 work="$(mktemp -d)"
+# A game runs only in a project (Chimera, 2026-10-26): crun_game <package>
+# <game> <movie> [chimera-run's options] makes one of the game and the movie,
+# with any --settings and --firmware given, and runs it with the rest.
+crun_game() {
+	local pkg="$1" game="$2" movie="$3" made=() run=() dir
+	shift 3
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--settings) made+=("$1" "$2"); shift ;;
+			--settings=*) made+=(--settings "${1#--settings=}") ;;
+			--firmware) made+=("$1" "$2"); run+=("$1" "$2"); shift ;;
+			--firmware=*) made+=(--firmware "${1#--firmware=}"); run+=(--firmware "${1#--firmware=}") ;;
+			*) run+=("$1") ;;
+		esac
+		shift
+	done
+	dir="$(mktemp -d "$work/project.XXXXXX")"
+	"$crun" --new-project "$dir/game.chimeraProject" "$pkg" "$game" "$movie" "${made[@]}" > "$dir/make.log" 2>&1 \
+		|| { echo "chimera-run: no project made: $(tail -1 "$dir/make.log")" >&2; return 2; }
+	"$crun" --project "$dir/game.chimeraProject" "$pkg" --files "$(dirname "$game")" "${run[@]}"
+}
 trap 'rm -rf "$work"' EXIT
 digests() { grep -E '^(frames|videoHash|audioHash|lagFrames|domain\[)'; }
 # What a turbo run can be held to: everything except the whole-run video hash,
@@ -181,7 +202,7 @@ if [ ! -x "$crun" ] || [ ! -f "$cpkg" ]; then
 else
 	printf '[Input]\nLogKey:#\n' > "$work/none.txt"
 	shape() { # <settings json> -> the one entry a frame records
-		"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/none.txt" \
+		crun_game "$cpkg" "$root/tests/roms/nova.nes" "$work/none.txt" \
 			--settings "$1" --frames 1 --record "$work/shape.txt" >/dev/null 2>&1 \
 			&& head -1 "$work/shape.txt"
 	}
@@ -222,10 +243,10 @@ fi
 if [ ! -x "$crun" ] || [ ! -f "$cpkg" ]; then
 	report "engine:input-polls" SKIP "needs chimera-run and a built package (set CHIMERA_ROOT)"
 else
-	"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/none.txt" --frames 300 --record "$work/idle.txt" > "$work/idle.log" 2>&1
-	"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/idle.txt" \
+	crun_game "$cpkg" "$root/tests/roms/nova.nes" "$work/none.txt" --frames 300 --record "$work/idle.txt" > "$work/idle.log" 2>&1
+	crun_game "$cpkg" "$root/tests/roms/nova.nes" "$work/idle.txt" \
 		--dump "RAM=$work/plain.ram" > "$work/plain.log" 2>&1
-	"$crun" "$cpkg" "$root/tests/roms/nova.nes" "$work/idle.txt" --count-input-polls \
+	crun_game "$cpkg" "$root/tests/roms/nova.nes" "$work/idle.txt" --count-input-polls \
 		--dump "RAM=$work/polls.ram" --meta "$work/polls.meta" > "$work/polls.log" 2>&1
 	polls=$(sed -n 's/^inputPolls=//p' "$work/polls.meta" 2> /dev/null)
 	lags=$(sed -n 's/^lagFrames=//p' "$work/polls.meta" 2> /dev/null)

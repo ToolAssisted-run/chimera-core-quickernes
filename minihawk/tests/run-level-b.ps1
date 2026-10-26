@@ -118,7 +118,8 @@ $testsDir   = Join-Path $PSScriptRoot "suite"
 $romsDirs   = @((Join-Path $testsDir "roms"), "C:\Users\sergiom\Documents\TAS\roms\nes")
 $emuHawk    = Join-Path $repoRoot "build\Chimera.exe"
 # cores load explicitly (no discovery): every instance is told which package to use
-$corePackage = Join-Path $repoRoot "build\Cores\quickernes.zip"
+$corePackage = Join-Path $repoRoot "build\Cores\quickernes.chimeraCore"
+$chimeraRun = Join-Path $repoRoot "build\dll\chimera-run.exe"
 if (-not (Test-Path -LiteralPath $corePackage)) { throw "core package not found at $corePackage (run quickerNES/waterbox/build-package.sh first)" }
 $harnessDir = $PSScriptRoot
 $workDir    = Join-Path $harnessDir "work"
@@ -258,8 +259,26 @@ function Start-TestJob($job) {
         "meta=$metaFile"
     ) | Out-File -LiteralPath $jobFile -Encoding ascii
 
+    # A game runs only in a project (Chimera, 2026-10-26): the test's movie (its
+    # settings and input; it names no game file) and the rom, made into one
+    $projDir = Join-Path $runDir "$name.project"
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $projDir
+    New-Item -ItemType Directory -Force $projDir | Out-Null
+    Copy-Item -LiteralPath $job.RomPath $projDir
+    $movie = Get-Content -Raw -LiteralPath $job.MoviePath | ConvertFrom-Json
+    $movieTxt = Join-Path $projDir "movie.txt"
+    [IO.File]::WriteAllText($movieTxt, $movie.input)
+    $settings = if ($movie.settings) { $movie.settings | ConvertTo-Json -Compress } else { "{}" }
+    $project = Join-Path $projDir "$name.chimeraProject"
+    $romCopy = Join-Path $projDir (Split-Path -Leaf $job.RomPath)
+    # quotes inside an argument are written \" for the program's command line
+    $makeArgs = "--new-project `"$project`" `"$corePackage`" `"$romCopy`" `"$movieTxt`" --settings `"$($settings -replace '"', '\"')`""
+    $make = Start-Process -FilePath $chimeraRun -ArgumentList $makeArgs -Wait -PassThru -NoNewWindow `
+        -RedirectStandardOutput (Join-Path $projDir "make.out") -RedirectStandardError (Join-Path $projDir "make.log")
+    if ($make.ExitCode -ne 0) { Write-Warning "${name}: no project made (see $projDir\make.log)" }
+
     $env:MINIHAWK_JOB = $jobFile   # snapshotted into the child env at CreateProcess
-    $cmdLine = "`"$emuHawk`" --headless `"--config=$cfgRun`" `"--core=$corePackage`" `"--movie=$($job.MoviePath)`" `"--lua=$playLua`" `"$($job.RomPath)`""
+    $cmdLine = "`"$emuHawk`" --headless `"--config=$cfgRun`" `"--core=$corePackage`" `"--lua=$playLua`" `"--project=$project`""
     $h = [HiddenLauncher]::Launch("minihawk_hidden", $cmdLine, $repoRoot)
     [void]$running.Add([pscustomobject]@{
         Name = $name; Handle = $h; Sw = [System.Diagnostics.Stopwatch]::StartNew()

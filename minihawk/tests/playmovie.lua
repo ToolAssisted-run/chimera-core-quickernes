@@ -51,10 +51,12 @@ meta.movieframes = movie.length()
 pcall(function() client.speedmode(6400) end)
 pcall(function() client.invisibleemulation(true) end)
 
--- Play to the end. The mode goes PLAY -> FINISHED on the last frame of the log.
-local guard = movie.length() + 1000
+-- Play to the end of the log. The movie is a project's, which TAStudio plays,
+-- and its mode does not turn to FINISHED there: count the frames instead.
+local length = movie.length()
+local guard = length + 1000
 local advanced = 0
-while movie.mode() == "PLAY" do
+while emu.framecount() < length do
 	emu.frameadvance()
 	advanced = advanced + 1
 	if advanced > guard then
