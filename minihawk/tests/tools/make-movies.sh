@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generates the witness movies: one .chimeraProject per test, converted from its .sol input
-# sequence by sol2project, which builds the mnemonics from the core's own
-# ControllerDefinition.
+# sequence by sol2project.py, which writes the columns the machine has (a joypad
+# in each port; other peripherals are refused).
 #
 # The free-set movies are committed, so CI needs nothing. Regenerate when the
 # controller declaration in waterbox.config changes, or when what a port holds
@@ -11,16 +11,13 @@
 # Usage:
 #   ./make-movies.sh                        # free-to-distribute set (default)
 #   ./make-movies.sh --set full             # every test whose rom is available
-#   ./make-movies.sh --chimera-root <path>
 set -u
 
 set_name=free
-chimera_root=""
 package_dir=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--set) set_name="$2"; shift ;;
-		--chimera-root) chimera_root="$2"; shift ;;
 		--package) package_dir="$2"; shift ;;
 		*) echo "unknown option: $1" >&2; exit 2 ;;
 	esac
@@ -34,18 +31,9 @@ suite="$tests_dir/suite"
 out_dir="$tests_dir/movies"
 mkdir -p "$out_dir"
 
-if [ -z "$chimera_root" ]; then
-	for candidate in "$repo_root/../chimera" "$HOME/chimera"; do
-		[ -d "$candidate" ] && { chimera_root="$candidate"; break; }
-	done
-fi
-[ -n "$chimera_root" ] && [ -d "$chimera_root" ] || { echo "chimera checkout not found; pass --chimera-root" >&2; exit 1; }
-chimera_root="$(cd "$chimera_root" && pwd)"
-dll="$chimera_root/build/dll"
-
 # The built package: core.wbx + waterbox.config, which is where the controller
 # declaration the movies are keyed to comes from. build-package.sh leaves it
-# here on its way into the chimera checkout, so the movies are keyed to the very
+# here on its way into the Chimera checkout, so the movies are keyed to the very
 # package the witness replays - and to what its ports report, since the columns a
 # movie carries are the ones the machine actually has.
 [ -n "$package_dir" ] || package_dir="$repo_root/build/package-staging"
@@ -57,13 +45,7 @@ free_set=(
 	"novaTheSquirrel.anyPercent"
 )
 
-converter="$here/sol2project.exe"
-if [ ! -f "$converter" ] || [ "$here/sol2project.cs" -nt "$converter" ]; then
-	echo "building sol2project..."
-	mcs -langversion:latest -out:"$converter" "$here/sol2project.cs" \
-		-r:"$dll/Chimera.Emulation.Common.dll" -r:"$dll/Chimera.Client.Common.dll" \
-		-r:"$dll/Chimera.Common.dll" -r:"$dll/Chimera.NativeInvoke.dll" -r:"$dll/Newtonsoft.Json.dll" || exit 1
-fi
+converter="$here/sol2project.py"
 
 roms_dirs=("$suite/roms" "$HOME/TAS/roms/nes")
 made=0
@@ -98,9 +80,7 @@ print(t.get('Sequence File', ''))
 		continue
 	fi
 
-	# sol2project loads the core to read its controller definition, so it needs the
-	# host library on the search path
-	if LD_LIBRARY_PATH="$dll" MONO_PATH="$dll" mono "$converter" \
+	if python3 "$converter" \
 		"$package_dir" "$rom_path" "$test_file" "$suite/$seq_file" "$out_dir/$name.chimeraProject" > /dev/null 2>&1; then
 		printf "  %-36s ok\n" "$name"
 		made=$((made + 1))

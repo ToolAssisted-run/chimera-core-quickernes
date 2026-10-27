@@ -1,5 +1,5 @@
 ﻿# miniHawk Level B witness driver.
-# Plays each test's project through EmuHawk against the WATERBOX package
+# Plays each test's project through Chimera's window (run headless) against the WATERBOX package
 # - core.wbx driven by miniHawk's one generic adapter - and dumps the final 2KB
 # RAM. In -Record mode the dumps become goldens; otherwise dumps are
 # byte-compared against the stored goldens.
@@ -9,8 +9,9 @@
 # (goldens/native/). Reproducing them byte-for-byte is exactly the proof that
 # sandboxing changed no emulation.
 #
-# EmuHawk instances run on a separate hidden Windows desktop (no window appears)
-# and up to -Parallel of them run concurrently, each with private config/job files.
+# The window needs no display; instances still start on a separate hidden Windows
+# desktop, and up to -Parallel of them run concurrently, each with private
+# settings, cache, recovery and job files.
 #
 # Usage:
 #   .\run-level-b.ps1                 # verify the free-to-distribute set (CI default)
@@ -31,7 +32,7 @@ param(
     [int]$Checkpoint = 0,
     [int]$Parallel = 8,
     [int]$TimeoutSec = 7200, # superOffroad.anyPercent is 182,180 frames; a smaller cap reports it as TIMEOUT
-    [string]$MiniHawkRoot = ""
+    [string]$ChimeraRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -105,20 +106,21 @@ public static class HiddenLauncher
 }
 "@
 
-if ($MiniHawkRoot -eq "") {
-    foreach ($candidate in @("..\..\..\miniHawk", "..\..\..\BizHawk")) {
+if ($ChimeraRoot -eq "") {
+    foreach ($candidate in @("..\..\..\chimera", (Join-Path $env:USERPROFILE "chimera"))) {
         $p = Join-Path $PSScriptRoot $candidate
-        if (Test-Path -LiteralPath $p) { $MiniHawkRoot = $p; break }
+        if (Test-Path -LiteralPath $p) { $ChimeraRoot = $p; break }
     }
 }
-if ($MiniHawkRoot -eq "" -or -not (Test-Path -LiteralPath $MiniHawkRoot)) { throw "miniHawk checkout not found; pass -MiniHawkRoot <path>" }
-$repoRoot   = (Resolve-Path $MiniHawkRoot).Path
+if ($ChimeraRoot -eq "" -or -not (Test-Path -LiteralPath $ChimeraRoot)) { throw "chimera checkout not found; pass -ChimeraRoot <path>" }
+$repoRoot   = (Resolve-Path $ChimeraRoot).Path
 # vendored snapshot of the quickerNES regression suite (upstream: TASEmulators/quickerNES, tests/)
 $testsDir   = Join-Path $PSScriptRoot "suite"
 $romsDirs   = @((Join-Path $testsDir "roms"), "C:\Users\sergiom\Documents\TAS\roms\nes")
-$emuHawk    = Join-Path $repoRoot "build\Chimera.exe"
+$chimeraExe = Join-Path $repoRoot "build\meson-windows\source\ui\chimera.exe"
 # cores load explicitly (no discovery): every instance is told which package to use
 $corePackage = Join-Path $repoRoot "build\Cores\quickernes.chimeraCore"
+if (-not (Test-Path -LiteralPath $chimeraExe)) { throw "Chimera not built: $chimeraExe" }
 $chimeraRun = Join-Path $repoRoot "build\dll\chimera-run.exe"
 if (-not (Test-Path -LiteralPath $corePackage)) { throw "core package not found at $corePackage (run quickerNES/waterbox/build-package.sh first)" }
 $harnessDir = $PSScriptRoot
@@ -146,25 +148,6 @@ $excluded = @(
 New-Item -ItemType Directory -Force $workDir, $runDir | Out-Null
 if ($Record) { New-Item -ItemType Directory -Force $goldenDir | Out-Null }
 
-# Base config: created by EmuHawk on first ever run; harness settings enforced here.
-$configFilePath = Join-Path $workDir "config.ini"
-if (Test-Path -LiteralPath $configFilePath) {
-    $cfg = Get-Content -LiteralPath $configFilePath -Raw | ConvertFrom-Json
-    $cfg.SoundEnabled = $false
-    # NOT setting OpposingDirPolicy: the SOCD filter sits in the HOST input path,
-    # and movie playback bypasses it entirely. It mattered when this harness
-    # injected input from Lua.
-    # GDI+ display: software-GL rendering wastes cores and cannot affect emulation
-    $cfg.DispMethod = 1
-    # Rewind captures a savestate EVERY frame. A replay never rewinds, so that is
-    # pure cost - and for a waterbox core it dominates everything else. The
-    # Savestate faithfulness is proven at the core level (waterbox/run-gate.sh).
-    if ($null -eq $cfg.Rewind) {
-        $cfg | Add-Member -NotePropertyName Rewind -NotePropertyValue ([pscustomobject]@{}) -Force
-    }
-    $cfg.Rewind | Add-Member -NotePropertyName Enabled -NotePropertyValue $false -Force
-    $cfg | ConvertTo-Json -Depth 100 | Out-File -LiteralPath $configFilePath -Encoding utf8
-}
 
 # Tests whose roms are free to distribute and are vendored in suite/roms. This is
 # the CI set: it needs nothing provisioned.
@@ -183,19 +166,12 @@ $excluded = @(
 New-Item -ItemType Directory -Force $workDir, $runDir | Out-Null
 if ($Record) { New-Item -ItemType Directory -Force $goldenDir | Out-Null }
 
-# Base config: created by EmuHawk on first ever run; harness settings enforced here.
-$configFilePath = Join-Path $workDir "config.ini"
-if (Test-Path -LiteralPath $configFilePath) {
-    $raw = Get-Content -LiteralPath $configFilePath -Raw
-    $new = $raw -replace '"OpposingDirPolicy": \d', '"OpposingDirPolicy": 2'
-    # GDI+ display: software-GL rendering on a hidden display wastes cores; display method cannot affect emulation
-    $new = $new -replace '"DispMethod": \d', '"DispMethod": 1'
-    $new = $new -replace '"SoundEnabled": true', '"SoundEnabled": false'
-    if ($new -ne $raw) { Set-Content -LiteralPath $configFilePath -Value $new -Encoding utf8 }
-}
 
-# Peripherals (Four Score, Arkanoid paddles) are carried in the movie's own sync
-# settings now, so every test runs from the same base config.
+# Every test runs from the same base settings: none. Peripherals (Four Score,
+# Arkanoid paddles) are carried in the movie's own sync settings.
+$env:ALSOFT_DRIVERS = "null"
+$env:CHIMERA_CORES_DIR = Join-Path $repoRoot "build\Cores"
+$env:CHIMERA_QT_CHIMERA_SETTINGS = Join-Path $workDir "no-chimera-config.ini"
 
 function Get-RomPath([string]$romFileEntry) {
     $name = $romFileEntry -replace "^roms/", ""
@@ -241,7 +217,7 @@ foreach ($testFile in $tests) {
     })
 }
 
-# ---------- run with up to $Parallel concurrent hidden EmuHawks ----------
+# ---------- run with up to $Parallel concurrent hidden windows ----------
 $running = New-Object System.Collections.ArrayList
 
 function Start-TestJob($job) {
@@ -250,9 +226,9 @@ function Start-TestJob($job) {
     $metaFile = Join-Path $workDir "$name."simple".meta.txt"
     Remove-Item -Force -ErrorAction SilentlyContinue $outFile, $metaFile
 
-    # private config + job file per instance (EmuHawk rewrites config on exit)
-    $cfgRun = Join-Path $runDir "config.$name.ini"
-    Copy-Item -LiteralPath $configFilePath $cfgRun -Force
+    # private settings + job file per instance (the window rewrites its settings on exit)
+    $cfgRun = Join-Path $runDir "settings.$name.json"
+    Remove-Item -Force -ErrorAction SilentlyContinue $cfgRun
     $jobFile = Join-Path $runDir "job.$name.txt"
     @(
         "out=$outFile",
@@ -278,7 +254,10 @@ function Start-TestJob($job) {
     if ($make.ExitCode -ne 0) { Write-Warning "${name}: no project made (see $projDir\make.log)" }
 
     $env:MINIHAWK_JOB = $jobFile   # snapshotted into the child env at CreateProcess
-    $cmdLine = "`"$emuHawk`" --headless `"--config=$cfgRun`" `"--core=$corePackage`" `"--lua=$playLua`" `"--project=$project`""
+    $env:CHIMERA_QT_CACHE = Join-Path $runDir "qt-cache.$name"
+    $env:CHIMERA_QT_RECOVERY = Join-Path $runDir "qt-recovery.$name"
+    $env:CHIMERA_QT_HASHES = Join-Path $runDir "qt-file-hashes.$name.txt"
+    $cmdLine = "`"$chimeraExe`" --headless `"--config=$cfgRun`" `"--core=$corePackage`" `"--lua=$playLua`" `"--project=$project`""
     $h = [HiddenLauncher]::Launch("minihawk_hidden", $cmdLine, $repoRoot)
     [void]$running.Add([pscustomobject]@{
         Name = $name; Handle = $h; Sw = [System.Diagnostics.Stopwatch]::StartNew()

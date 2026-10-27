@@ -24,7 +24,7 @@ What is still here, and why:
   See [`lua/README.md`](lua/README.md).
 - `palettes/` — NES palettes. Parked for the same reason: no palette contract
   in the waterbox package format yet.
-- `tests/` — the frontend replay witness (movies, goldens, the driver for Chimera's window).
+- `tests/` - the frontend replay witness (movies, goldens, the driver for Chimera's window).
   **Live**: it now replays the suite against the waterbox package and compares
   against the same goldens it always used, which is what proves the sandboxed
   core emulates identically to the retired native one. See

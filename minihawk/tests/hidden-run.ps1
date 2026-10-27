@@ -1,5 +1,5 @@
 # Runs a command line on the hidden minihawk desktop and waits for it to exit.
-# Usage: .\hidden-run.ps1 -CommandLine '"C:\...\EmuHawk.exe" "--lua=..." "rom.nes"' [-TimeoutMs 120000]
+# Usage: .\hidden-run.ps1 -CommandLine '"C:\...\chimera.exe" "--lua=..." "rom.nes"' [-TimeoutMs 120000]
 param(
     [Parameter(Mandatory = $true)] [string]$CommandLine,
     [int]$TimeoutMs = 120000

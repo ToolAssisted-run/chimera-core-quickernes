@@ -5,9 +5,9 @@
 # round-trip around every frame.
 #
 # This is the gate CI runs on every push, over the roms that are free to
-# distribute. It needs only gcc, meson and python3 - no .NET, Mono or X - so it
+# distribute. It needs only gcc, meson and python3 - no Chimera window and no display - so it
 # is the fast half of the witness. The frontend half (movies replayed through
-# EmuHawk against goldens) lives in ../minihawk/tests.
+# Chimera's window against goldens) lives in ../minihawk/tests.
 #
 # Usage:
 #   ./run-gate.sh [-n <native build dir>] [-g <guest build dir>] [-f <frames>] [rom...]

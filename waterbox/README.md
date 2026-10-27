@@ -58,8 +58,8 @@ $N/run-wbx    $G/core.wbx       <rom.nes> 120 --rerecord  # + savestate round-tr
 $N/run-tooling $G/core.wbx <rom.nes> 120
 ```
 
-The full frontend gate — 26 real movies replayed through Chimera's window
-against goldens — lives in [`../minihawk/tests`](../minihawk/tests).
+The full frontend gate - 26 real movies replayed through Chimera's window
+against goldens - lives in [`../minihawk/tests`](../minihawk/tests).
 
 ## Settings
 
