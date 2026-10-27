@@ -12,8 +12,6 @@ maintained.
 
 - `nes.d.lua` — LuaCATS editor annotations for the `nes.*` Lua API. This is the
   API's declaration: what a script may call, and what it gets back.
-- `api/NESLuaLibrary.cs` — the frontend-side implementation of that API,
-  recovered from BizHawk. NOT currently compiled: it targets frontend internals
-  rather than the core contract, and miniHawk does not yet support
-  package-provided Lua API libraries. It is kept as the reference for wiring
-  that up when the contract grows that capability.
+
+A core package cannot provide a Lua library yet; when it can, these
+declarations are what it would implement.

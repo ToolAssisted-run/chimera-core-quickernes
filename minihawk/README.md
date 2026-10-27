@@ -1,9 +1,8 @@
 # miniHawk material (retired package format)
 
-This directory used to hold the QuickerNES core package for
-[miniHawk](https://github.com/SergioMartin86/miniHawk): a managed adapter DLL
-plus a prebuilt `libquicknes` native, described by a `minihawk-core.json`
-manifest.
+This directory used to hold the QuickerNES core package in an earlier
+format: an adapter plus a prebuilt `libquicknes` native, described by a
+`minihawk-core.json` manifest.
 
 **That package format is gone.** miniHawk is waterbox-only: the only loadable
 package is `core.wbx` (a sandboxed guest binary) plus `waterbox.config`, built
@@ -19,8 +18,7 @@ What is still here, and why:
   reference* the waterbox equivalence gate runs against
   (`waterbox/run-native.c` dlopens `native/libquicknes.so`), proving the
   sandboxed core emulates identically to the unsandboxed one.
-- `lua/` — the `nes.*` Lua API (declarations plus the recovered frontend-side
-  implementation). Parked: a waterbox package has no way to ship a Lua API yet.
+- `lua/` — the `nes.*` Lua API's declarations. Parked: a waterbox package has no way to ship a Lua API yet.
   See [`lua/README.md`](lua/README.md).
 - `palettes/` — NES palettes. Parked for the same reason: no palette contract
   in the waterbox package format yet.
