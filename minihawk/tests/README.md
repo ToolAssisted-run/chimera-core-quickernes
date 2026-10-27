@@ -1,8 +1,8 @@
 # QuickerNES witness harness for miniHawk
 
 Lives in the quickerNES repository (miniHawk itself carries no core-specific
-material). Both drivers locate the miniHawk checkout via `--minihawk-root` /
-`-MiniHawkRoot` (default: sibling checkout named `miniHawk` or `BizHawk`).
+material). Both drivers locate the Chimera checkout via `--chimera-root` /
+`-ChimeraRoot` (default: a sibling checkout named `chimera`, then `~/chimera`).
 
 The core under test is the **waterbox package** — `core.wbx` plus
 `waterbox.config`, built by [`../../waterbox/build-package.sh`](../../waterbox)
@@ -41,17 +41,17 @@ the core level where it belongs.
 ```
 
 `run-level-b.ps1` is the Windows equivalent (`-Set full`, …); it runs instances
-on a hidden Windows desktop instead of Xvfb, and `hidden-run.ps1` is a standalone
+on a hidden Windows desktop, and `hidden-run.ps1` is a standalone
 helper for one-off hidden runs.
 
 ## How a test runs
 
-For each test: launch EmuHawk with `--headless --movie=<test>.chimeraProject`, play the
-movie to its end on a hidden display (no window appears), and dump the final 2KB
+For each test: start Chimera's window with `--headless` and the test's project, play the
+movie to its end (no window appears and no display is needed), and dump the final 2KB
 `RAM` domain. Input comes from the **movie**, so the gate exercises the same path
 a user does — the movie session driving the controller chain — and nothing runs
 per frame in script. Up to `--parallel` instances run concurrently, each with
-private config/job files. `--headless` makes any modal dialog log its text and
+private settings, cache, recovery and job files. `--headless` makes any modal dialog log its text and
 exit with code 64 instead of blocking invisibly.
 
 A movie here is a **Chimera project** (`.chimeraProject`): one JSON file holding
@@ -61,11 +61,11 @@ reads — the zip the BizHawk lineage carried is gone, and a file that is not a
 project is refused before it is opened.
 
 Movies are generated from the `.sol` sequences by `tools/make-movies.sh`, which
-uses the frontend's own `LogEntryGenerator` against the core's
-`ControllerDefinition` — so the mnemonic layout comes from the code that reads it
-back, not a hand-written guess. That definition is the one the **machine** has,
-not the one the package declares: the ports were read at boot, so a movie carries
-columns for the peripherals its own settings plugged in and no others. **Change
+runs `tools/sol2project.py`. It writes the columns the **machine** has, not the
+ones the package declares: a movie carries columns for the peripherals its own
+settings plugged in and no others. It handles a joypad (or nothing) in each
+port; the Arkanoid and Four Score tests are refused until its layout for them has
+been checked. **Change
 the controller declaration in waterbox.config, or what a port holds, and the
 movies must be regenerated**; forget, and every test desyncs at once, which is the
 intended alarm. Free-set movies are committed, so CI needs no conversion step.

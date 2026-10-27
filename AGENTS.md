@@ -53,7 +53,8 @@ meson compile -C "$MB/build/meson-cpp"
 
 The first miniBox build downloads the GCC source that matches the host gcc
 (about 84 MB) to build libstdc++ for the guest. The frontend witness needs
-more: Mono, Xvfb, the .NET SDK 8.0 and a built Chimera. See
+more: Chimera built with its window (Chimera's `tools/ci-chimera.sh`
+builds it). See
 `docs/BUILDING.md`.
 
 ## Build
@@ -76,9 +77,9 @@ ninja -C build/meson-guest core.wbx
 
 `build-package.sh -r "$CHIMERA"` installs it: `$CHIMERA/build/Cores/` is the
 cores folder of a Chimera source checkout. For a release bundle, copy the
-`.chimeraCore` file into the `Cores` folder beside `Chimera.exe` (or the
-folder chosen in File > Core Manager > Change folder...). Chimera downloads
-nothing. File > Core Manager lists the folder; Refresh List rescans it.
+`.chimeraCore` file into the `cores` folder beside Chimera's program (or the
+folder chosen in Tools > Core Manager... > Change folder...). Chimera downloads
+nothing. Tools > Core Manager... lists the folder; Refresh List rescans it.
 
 A package built by hand is stamped `<commit>+local` (`-dirty` when the tree
 has changes) and is for testing. Only CI sets `CORE_VERSION` and publishes.
@@ -88,7 +89,7 @@ has changes) and is for testing. Only CI sets `CORE_VERSION` and publishes.
 ```sh
 ./waterbox/run-gate.sh                            # the core gate
 CHIMERA_ROOT="$CHIMERA" ./waterbox/run-gate.sh    # the same, with ports:columns
-(cd minihawk/tests && ./run-level-b.sh --minihawk-root "$CHIMERA")   # the frontend witness
+(cd minihawk/tests && ./run-level-b.sh --chimera-root "$CHIMERA")   # the frontend witness
 ```
 
 The core gate must end with `0 failed`. It compares the sandboxed core with
@@ -97,7 +98,7 @@ every frame, and checks turbo, the tooling exports and save data. Its
 `ports:columns` leg skips unless `CHIMERA_ROOT` names a built Chimera that
 has the package installed.
 
-The frontend witness needs a built Chimera (`$CHIMERA/build/Chimera.exe`)
+The frontend witness needs Chimera built with its window (`$CHIMERA/build/meson-linux/source/ui/chimera`)
 and the installed package. Both free-set tests must report PASS. CI
 publishes only when the core gate and the witness are green. CI also runs
 `make.yml`, the standalone tester's own tests.

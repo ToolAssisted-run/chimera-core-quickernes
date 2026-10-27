@@ -33,21 +33,10 @@ sudo apt-get install -y --no-install-recommends meson ninja-build build-essentia
 For the frontend witness, which builds all of Chimera (workflow job
 `frontend-witness`):
 
-```sh
-sudo apt-get update
-sudo apt-get install -y --no-install-recommends \
-  meson ninja-build build-essential cmake pkg-config python3 \
-  mono-complete xvfb \
-  libgl1-mesa-dev libx11-dev libxext-dev libasound2-dev
-```
-
-The frontend witness also needs the .NET SDK 8.0. The workflow installs it
-with `actions/setup-dotnet@v4` and `dotnet-version: '8.0'`. By hand, Chimera's
-README gives the command and says why the distribution's SDK is not enough:
-
-```sh
-curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0
-```
+For the frontend witness, Chimera built with its window: Chimera's
+`tools/ci-chimera.sh` installs what that needs (Qt 6.12, from Qt's own
+archives with aqt) and builds it; the workflow keeps Qt in `~/qt` between
+runs.
 
 No compiler version is pinned. The build uses the gcc and g++ that
 `build-essential` installs, and the package records that gcc version in its
@@ -107,7 +96,7 @@ Where each script looks for Chimera when it is not told:
 | `waterbox/setup-guest.sh` | `-m <miniBox>` (or `MINIBOX_DIR`) | `$HOME/chimera/extern/chimera-common-minibox` |
 | `meson.build`, native build | `-Dminibox_dir=<miniBox>` | `../chimera/extern/chimera-common-minibox` beside `<repo>`, else an error |
 | `waterbox/run-gate.sh` | `CHIMERA_ROOT=<chimera>` | three directories above `<repo>` |
-| `minihawk/tests/run-level-b.sh` | `--minihawk-root <chimera>` | a directory named `miniHawk` or `BizHawk` beside `<repo>` |
+| `minihawk/tests/run-level-b.sh` | `--chimera-root <chimera>` | a directory named `chimera` beside `<repo>`, then `$HOME/chimera` |
 
 The fallbacks differ from script to script. Pass the paths.
 
@@ -218,10 +207,10 @@ gets into Chimera because somebody puts the file there.
 - In a Chimera source checkout the cores folder is `<chimera>/build/Cores/`.
   `build-package.sh -r <chimera>` writes the package there, so there is
   nothing else to do.
-- In a release bundle, copy `quickernes.chimeraCore` into the `Cores` folder
-  beside `Chimera.exe` (or into the folder chosen in File > Core Manager >
+- In a release bundle, copy `quickernes.chimeraCore` into the `cores` folder
+  beside Chimera's program (or into the folder chosen in Tools > Core Manager... >
   Change folder...).
-- File > Core Manager lists what is in that folder. Refresh List rescans it.
+- Tools > Core Manager... lists what is in that folder. Refresh List rescans it.
 
 The same package file works on Linux and on Windows. The guest inside it is
 run by Chimera's sandbox (miniBox) on either.
@@ -230,7 +219,7 @@ Packages built by CI are on this repository's Releases page,
 https://github.com/ToolAssisted-run/chimera-core-quickernes/releases : a
 rolling `dev` release and dated `nightly-YYYY-MM-DD` releases. The asset is
 named `quickernes-<version>.chimeraCore`. Download it and put it in the
-`Cores` folder.
+`cores` folder.
 
 To use the core: File > New Project... and pick it. To play a rom with no
 project, start Chimera with `--core=<package> <rom>`.
@@ -246,7 +235,7 @@ There are two gates. CI needs both green before it publishes.
 ```
 
 It needs `build/meson-native` (the native reference and the drivers) and
-`build/meson-guest/core.wbx`, and nothing else: no .NET, no Mono, no X.
+`build/meson-guest/core.wbx`, and nothing else: no Chimera build, no display.
 
 ```
 ./waterbox/run-gate.sh [-n <native build dir>] [-g <guest build dir>] [-f <frames>] [rom...]
@@ -288,11 +277,7 @@ with goldens recorded from the native core. It needs a built Chimera and the
 installed package. Build Chimera as the workflow does:
 
 ```sh
-cd <chimera>
-meson setup build/meson-linux --prefix "$PWD/build" --libdir dll
-meson compile -C build/meson-linux
-meson install -C build/meson-linux
-dotnet build source/gui/Chimera.sln -c Release /nodeReuse:false -p:UseSharedCompilation=false
+<chimera>/tools/ci-chimera.sh
 ```
 
 Then, from `<repo>`:
@@ -300,15 +285,14 @@ Then, from `<repo>`:
 ```sh
 ./waterbox/build-package.sh -r <chimera>
 cd minihawk/tests
-./run-level-b.sh --minihawk-root <chimera>
+./run-level-b.sh --chimera-root <chimera>
 ```
 
-For each test it starts `<chimera>/build/Chimera.exe` under Mono with
+For each test it starts `<chimera>/build/meson-linux/source/ui/chimera` with
 `--headless`, the package, the test's committed movie
 (`movies/<test>.chimeraProject`) and the rom, plays the movie to its end, and
 compares the final 2 KB of RAM byte for byte with
-`goldens/levelB/<test>.simple.ram.bin`. With `DISPLAY` unset it starts its
-own Xvfb; with `DISPLAY` set it uses that display.
+`goldens/levelB/<test>.simple.ram.bin`. It needs no display.
 
 The default set is `free`: `sprilo.anyPercent` and
 `novaTheSquirrel.anyPercent`, whose roms are in `suite/roms`. This is what CI
@@ -318,8 +302,9 @@ runs. It does not test savestates; the core gate does.
 `suite/roms` and then in `$HOME/TAS/roms/nes`. A test reports SKIP when its
 rom is not found, when the rom's SHA-1 is not the one the test expects, or
 when it has no movie. Only the free set's movies are committed; the others
-are made with `tools/make-movies.sh --set full`, which needs a built Chimera
-and the staged package.
+are made with `tools/make-movies.sh --set full`, which needs the staged package and Python. It
+handles a joypad (or nothing) in each port and refuses the Arkanoid and Four
+Score tests.
 
 Other options: `--filter <regex>`, `--parallel <n>` (default 8),
 `--timeout <seconds>` per test (default 7200), `--record` (write goldens
@@ -369,7 +354,7 @@ distribute homebrew. They are there for the gates.
 ## Troubleshooting
 
 - `miniHawk checkout not found; pass -r <path>` (`build-package.sh`) or
-  `pass --minihawk-root <path>` (`run-level-b.sh`): pass the Chimera
+  `pass --chimera-root <path>` (`run-level-b.sh`): pass the Chimera
   checkout. The two scripts do not look in the same places.
 - `miniBox C++ guest toolchain missing under <miniBox>/build/meson-cpp`
   (`setup-guest.sh`): build miniBox with `-Dguest_cpp=true` first. The plain
@@ -388,12 +373,8 @@ distribute homebrew. They are there for the gates.
   identity, so the script stops.
 - `core package not found at ...` (`run-level-b.sh`): run
   `waterbox/build-package.sh -r <chimera>` first.
-- `Xvfb not found (apt install xvfb), and no DISPLAY set`
-  (`run-level-b.sh`): install `xvfb`.
 - A witness test fails with `no meta produced`: read
-  `minihawk/tests/work/run/<test>.log`. A first run that cannot make its
-  configuration says `bootstrap failed`; read
-  `minihawk/tests/work/run/bootstrap.log`.
+  `minihawk/tests/work/run/<test>.log`.
 - Every witness test desyncs at once: the controller declaration in
   `waterbox.config`, or what a port holds, changed and the movies were not
   regenerated. Run `minihawk/tests/tools/make-movies.sh`.
