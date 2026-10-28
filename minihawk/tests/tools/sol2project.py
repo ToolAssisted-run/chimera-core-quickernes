@@ -22,6 +22,29 @@ import json
 import os
 import sys
 
+
+def inputs_of(log):
+    """A movie's text block ("[Input]", "LogKey:...", its entries, "[/Input]")
+    as a project file's "inputs": the key's groups of column names, and one
+    entry a frame. A group starts where a '#' begins a name; a name ends at
+    '|' (as Chimera splits a key)."""
+    lines = log.splitlines()
+    out = {}
+    key = next((l[len("LogKey:"):] for l in lines if l.startswith("LogKey:")), None)
+    if key is not None:
+        groups, at = [], 0
+        while at < len(key):
+            assert key[at] == "#", key
+            groups.append([])
+            at += 1
+            while at < len(key) and key[at] != "#":
+                bar = key.index("|", at)
+                groups[-1].append(key[at:bar])
+                at = bar + 1
+        out["columns"] = groups
+    out["entries"] = [l for l in lines if l.startswith("|")]
+    return out
+
 PROJECT_VERSION = "Chimera Project File v1.1"
 # the order of a .sol field, and the letters the movie text uses for the buttons
 SOL_ORDER = ["Up", "Down", "Left", "Right", "Start", "Select", "B", "A"]
@@ -84,7 +107,7 @@ def main(argv):
             "SHA1": hashlib.sha1(rom).hexdigest().upper(),
             "Author": "miniHawk witness",
         },
-        "input": log,
+        "inputs": inputs_of(log),
     }
     with io.open(out_path, "w", encoding="utf-8", newline="") as f:
         f.write(json.dumps(project, indent=2, ensure_ascii=False))

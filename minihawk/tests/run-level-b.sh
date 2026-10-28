@@ -189,7 +189,9 @@ start_test_job() { # index into job_* arrays
 	settings="$(python3 - "${job_movies[$i]}" "$proj_dir/movie.txt" <<'PYMOVIE'
 import json, sys
 movie = json.load(open(sys.argv[1], encoding="utf-8-sig"))
-open(sys.argv[2], "w").write(movie.get("input", ""))
+inputs = movie.get("inputs", {})
+key = "".join("#" + "".join(n + "|" for n in g) for g in inputs.get("columns", []))
+open(sys.argv[2], "w").write("[Input]\nLogKey:" + key + "\n" + "".join(e + "\n" for e in inputs.get("entries", [])) + "[/Input]\n")
 print(json.dumps(movie.get("settings", {})))
 PYMOVIE
 )"
