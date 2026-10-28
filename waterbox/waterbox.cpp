@@ -178,6 +178,11 @@ extern "C"
 
 /* What went wrong, when Init says it did. The host asks for this after a failed
  * load and shows it to the user; without it a refusal is a silent zero. */
+/* A text a person reads is a key of languages/en.json, each of its
+ * arguments after a TEXT_ARG (chimera docs/translations.md). TEXT_ARG is a
+ * string of its own so the byte after it is never read as more of its hex. */
+#define TEXT_ARG "\x1f"
+
 static char g_loadError[256];
 
 ECL_EXPORT const char *GetLoadError(void) { return g_loadError; }
@@ -223,14 +228,13 @@ ECL_EXPORT int Init(void)
 			if (!g_emu->cart()->has_battery_ram())
 			{
 				snprintf(g_loadError, sizeof g_loadError,
-					"this cartridge has no battery, so it keeps no saves - "
-					"'%s' would not be read.", saveName);
+					"error.no_battery" TEXT_ARG "%s", saveName);
 				return 0;
 			}
 			FILE *sf = fopen(saveName, "rb");
 			if (!sf)
 			{
-				snprintf(g_loadError, sizeof g_loadError, "could not open '%s'", saveName);
+				snprintf(g_loadError, sizeof g_loadError, "error.not_opened" TEXT_ARG "%s", saveName);
 				return 0;
 			}
 			const size_t want = quickerNES::Emu::high_mem_size;

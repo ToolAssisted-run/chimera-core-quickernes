@@ -3,24 +3,24 @@
   "slots": [
     {
       "id": "rom",
-      "title": "Cartridge",
+      "title": "slot.rom",
       "min": 1,
       "max": 1,
       "formats": [
         "nes"
       ],
-      "help": "The NES cartridge file in iNES format (.nes)."
+      "help": "slot.rom.help"
     },
     {
       "id": "savedata",
-      "title": "Save data",
+      "title": "slot.savedata",
       "min": 0,
       "max": 1,
       "formats": [
         "sav",
         "srm"
       ],
-      "help": "The saved game that a cartridge with a battery starts with. This is the file that Emulator > Export Save Data... writes (battery.sav, the cartridge's 8 KB of save memory). Put it here to continue a run from where another one stopped. The file is never changed. The project and the movie record exactly which file it was, so a movie that starts from a saved game can be played back by anyone who has the same file. A cartridge with no battery keeps no saves, and the project says so. Leave this empty to start with a fresh cartridge."
+      "help": "slot.savedata.help"
     }
   ]
 }

@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "This cartridge has no battery, so it keeps no saves, and '%1' would not be read.",
+		"error.not_opened": "Could not open '%1'.",
+		"setting.port1": "Left Port Peripheral",
+		"setting.port1.about": "What is plugged into controller port 1. It is part of the machine, so changing it restarts the core.",
+		"setting.port2": "Right Port Peripheral",
+		"setting.port2.about": "What is plugged into controller port 2. The Four Score here is the second half of a four-player adapter.",
+		"setting.spritelimit": "Visible Sprites",
+		"setting.spritelimit.about": "How many sprites are drawn on one line of the picture. 8 is what the console does, and it is why sprites flicker. 64 draws them all. It changes the picture only. The game runs the same, and the setting is not saved in movies.",
+		"slot.rom": "Cartridge",
+		"slot.rom.help": "The NES cartridge file in iNES format (.nes).",
+		"slot.savedata": "Save data",
+		"slot.savedata.help": "The saved game that a cartridge with a battery starts with. This is the file that Emulator > Export Save Data... writes (battery.sav, the cartridge's 8 KB of save memory). Put it here to continue a run from where another one stopped. The file is never changed. The project and the movie record exactly which file it was, so a movie that starts from a saved game can be played back by anyone who has the same file. A cartridge with no battery keeps no saves, and the project says so. Leave this empty to start with a fresh cartridge."
+	}
+}
