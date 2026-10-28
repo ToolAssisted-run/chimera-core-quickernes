@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Această cartușă nu are baterie, deci nu păstrează salvări, iar „%1” nu ar fi citit.",
+		"error.not_opened": "Nu s-a putut deschide „%1”.",
+		"setting.port1": "Periferic din portul stâng",
+		"setting.port1.about": "Ce este conectat la portul de control 1. Face parte din mașină, deci schimbarea lui repornește nucleul.",
+		"setting.port2": "Periferic din portul drept",
+		"setting.port2.about": "Ce este conectat la portul de control 2. Four Score de aici este a doua jumătate a unui adaptor pentru patru jucători.",
+		"setting.spritelimit": "Sprite-uri vizibile",
+		"setting.spritelimit.about": "Câte sprite-uri sunt desenate pe o linie a imaginii. 8 este ce face consola, și de aceea sprite-urile pâlpâie. 64 le desenează pe toate. Schimbă doar imaginea. Jocul rulează la fel, iar setarea nu este salvată în filme.",
+		"slot.rom": "Cartușă",
+		"slot.rom.help": "Fișierul cartușei NES în format iNES (.nes).",
+		"slot.savedata": "Date salvate",
+		"slot.savedata.help": "Jocul salvat cu care pornește o cartușă care are baterie. Acesta este fișierul pe care îl scrie Emulator > Export Save Data... (battery.sav, cei 8 KB de memorie de salvare ai cartușei). Pune-l aici ca să continui o rulare de unde s-a oprit alta. Fișierul nu este schimbat niciodată. Proiectul și filmul rețin exact care fișier a fost, astfel încât un film care pornește dintr-un joc salvat poate fi redat de oricine are același fișier. O cartușă fără baterie nu păstrează salvări, iar proiectul spune asta. Lasă gol ca să pornești cu o cartușă nouă."
+	}
+}

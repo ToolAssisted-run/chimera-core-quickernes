@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Ennek a kazettának nincs elemes memóriája, ezért nem tárol mentéseket, és a(z) „%1” nem olvasható be.",
+		"error.not_opened": "Nem sikerült megnyitni: „%1”.",
+		"setting.port1": "Bal port kiegészítője",
+		"setting.port1.about": "Az 1-es vezérlőporthoz csatlakoztatott eszköz. A gép része, ezért a módosítása újraindítja a magot.",
+		"setting.port2": "Jobb port kiegészítője",
+		"setting.port2.about": "A 2-es vezérlőporthoz csatlakoztatott eszköz. A Four Score itt egy négyjátékos adapter második fele.",
+		"setting.spritelimit": "Látható sprite-ok",
+		"setting.spritelimit.about": "Hány sprite rajzolódik ki a kép egy sorában. A 8 az, amit a konzol is tud, és emiatt villognak a sprite-ok. A 64 mindet kirajzolja. Csak a képet változtatja: a játék ugyanúgy fut, és a beállítás nincs mentve a movie-kba.",
+		"slot.rom": "Kazetta",
+		"slot.rom.help": "Az NES-kazetta fájlja iNES formátumban (.nes).",
+		"slot.savedata": "Mentési adat",
+		"slot.savedata.help": "Az elemes kazetta mentett játéka, amellyel indul. Ez az a fájl, amelyet az Emulátor > Mentési adat exportálása... ír ki (battery.sav, a kazetta 8 KB-os mentési memóriája). Ide téve egy másik futtatás megállt helyéről folytatható. A fájl soha nem változik. A projekt és a movie pontosan rögzíti, melyik fájl volt, így egy mentett játékból induló movie bárki lejátszhatja, akinek megvan ugyanez a fájl. Elem nélküli kazetta nem tárol mentést, és a projekt ezt ki is írja. Hagyja üresen, ha friss kazettával akar indulni."
+	}
+}

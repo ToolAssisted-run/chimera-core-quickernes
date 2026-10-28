@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Tato kazeta nemá baterii, takže neuchovává žádné uložené hry a '%1' by nebyl načten.",
+		"error.not_opened": "Nelze otevřít '%1'.",
+		"setting.port1": "Periferie levého portu",
+		"setting.port1.about": "Co je zapojeno do portu ovladače 1. Je to součást stroje, takže změna restartuje jádro.",
+		"setting.port2": "Periferie pravého portu",
+		"setting.port2.about": "Co je zapojeno do portu ovladače 2. Four Score je zde druhá polovina adaptéru pro čtyři hráče.",
+		"setting.spritelimit": "Viditelné sprity",
+		"setting.spritelimit.about": "Kolik spritů se vykreslí na jednom řádku obrazu. 8 je to, co dělá konzole, a proto spriti blikají. 64 vykreslí všechny. Mění to jen obraz. Hra běží stejně a nastavení se v záznamech neukládá.",
+		"slot.rom": "Kazeta",
+		"slot.rom.help": "Soubor kazety NES ve formátu iNES (.nes).",
+		"slot.savedata": "Uložená data",
+		"slot.savedata.help": "Uložená hra, se kterou začíná kazeta s baterií. Je to soubor, který zapisuje Emulátor > Exportovat uložená data... (battery.sav, 8 KB paměti pro uložení na kazetě). Vložte jej sem, chcete-li pokračovat v běhu tam, kde jiný skončil. Soubor se nikdy nemění. Projekt a záznam přesně zapíší, který soubor to byl, takže záznam, který začíná z uložené hry, může přehrát každý, kdo má stejný soubor. Kazeta bez baterie uložení neuchovává a projekt to uvádí. Nechte prázdné, chcete-li začít s novou kazetou."
+	}
+}

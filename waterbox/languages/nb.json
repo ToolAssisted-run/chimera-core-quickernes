@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Denne kassetten har ingen batteri, så den lagrer ingen lagringer, og «%1» ville ikke blitt lest.",
+		"error.not_opened": "Kunne ikke åpne «%1».",
+		"setting.port1": "Venstre portperiferi",
+		"setting.port1.about": "Det som er koblet til kontrollerporten 1. Det er en del av maskinen, så en endring starter kjernen på nytt.",
+		"setting.port2": "Høyre portperiferi",
+		"setting.port2.about": "Det som er koblet til kontrollerporten 2. Four Score her er den andre halvdelen av en adapter for fire spillere.",
+		"setting.spritelimit": "Synlige sprites",
+		"setting.spritelimit.about": "Hvor mange sprites som tegnes på én linje i bildet. 8 er det konsollen gjør, og det er grunnen til at sprites flimrer. 64 tegner dem alle. Det endrer bare bildet. Spillet går likt, og innstillingen lagres ikke i filmer.",
+		"slot.rom": "Kassett",
+		"slot.rom.help": "NES-kassettfilen i iNES-format (.nes).",
+		"slot.savedata": "Lagringsdata",
+		"slot.savedata.help": "Det lagrede spillet en kassett med batteri starter med. Dette er filen som Emulator > Eksporter lagringsdata... skriver (battery.sav, kassettens 8 KB lagringsminne). Legg den her for å fortsette en kjøring der en annen stoppet. Filen endres aldri. Prosjektet og filmen registrerer nøyaktig hvilken fil det var, så en film som starter fra et lagret spill kan spilles av av alle som har samme fil. En kassett uten batteri lagrer ingen lagringer, og prosjektet sier det. La feltet stå tomt for å starte med en ny kassett."
+	}
+}

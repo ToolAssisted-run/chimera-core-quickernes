@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Este cartucho não tem bateria, então não guarda saves, e '%1' não seria lido.",
+		"error.not_opened": "Não foi possível abrir '%1'.",
+		"setting.port1": "Periférico da porta esquerda",
+		"setting.port1.about": "O que está ligado na porta 1 do controle. Faz parte da máquina, então trocá-lo reinicia o núcleo.",
+		"setting.port2": "Periférico da porta direita",
+		"setting.port2.about": "O que está ligado na porta 2 do controle. O Four Score aqui é a segunda metade de um adaptador de quatro jogadores.",
+		"setting.spritelimit": "Sprites visíveis",
+		"setting.spritelimit.about": "Quantos sprites são desenhados em uma linha da imagem. 8 é o que o console faz, e é por isso que os sprites piscam. 64 desenha todos. Muda só a imagem. O jogo roda do mesmo jeito, e a configuração não é salva nos filmes.",
+		"slot.rom": "Cartucho",
+		"slot.rom.help": "O arquivo do cartucho do NES no formato iNES (.nes).",
+		"slot.savedata": "Dados salvos",
+		"slot.savedata.help": "O jogo salvo com que um cartucho com bateria começa. Este é o arquivo que Emulador > Exportar Dados Salvos... grava (battery.sav, os 8 KB de memória de salvamento do cartucho). Coloque-o aqui para continuar uma execução de onde outra parou. O arquivo nunca é alterado. O projeto e o filme registram exatamente qual arquivo foi, então um filme que começa de um jogo salvo pode ser reproduzido por qualquer pessoa que tenha o mesmo arquivo. Um cartucho sem bateria não guarda saves, e o projeto informa isso. Deixe vazio para começar com um cartucho novo."
+	}
+}

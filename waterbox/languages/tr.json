@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Bu kartuşta pil yok, bu yüzden kayıt tutmaz ve '%1' okunmaz.",
+		"error.not_opened": "'%1' açılamadı.",
+		"setting.port1": "Sol Port Çevre Birimi",
+		"setting.port1.about": "Denetleyici 1 numaralı porta takılı olan şey. Makinenin bir parçası olduğu için değiştirilmesi çekirdeği yeniden başlatır.",
+		"setting.port2": "Sağ Port Çevre Birimi",
+		"setting.port2.about": "Denetleyici 2 numaralı porta takılı olan şey. Burada seçilen Four Score, dört oyunculu bir adaptörün ikinci yarısıdır.",
+		"setting.spritelimit": "Görünür Sprite'lar",
+		"setting.spritelimit.about": "Görüntünün bir satırında kaç sprite çizildiği. 8, konsolun yaptığı şeydir ve sprite'ların titremesinin nedeni budur. 64 hepsini çizer. Yalnızca görüntüyü değiştirir. Oyun aynı şekilde çalışır ve bu ayar filmlere kaydedilmez.",
+		"slot.rom": "Kartuş",
+		"slot.rom.help": "iNES biçimindeki NES kartuş dosyası (.nes).",
+		"slot.savedata": "Kayıt verisi",
+		"slot.savedata.help": "Pili olan bir kartuşun başladığı kayıtlı oyun. Bu, Emulator > Export Save Data... komutunun yazdığı dosyadır (battery.sav, kartuşun 8 KB'lık kayıt belleği). Bir çalıştırmayı başka bir yerde durmuş olarak sürdürmek için buraya koyun. Dosya hiçbir zaman değiştirilmez. Proje ve film, tam olarak hangi dosya olduğunu kaydeder; böylece kayıtlı bir oyundan başlayan film, aynı dosyaya sahip herkes tarafından oynatılabilir. Pili olmayan kartuş kayıt tutmaz ve proje bunu söyler. Yeni bir kartuştan başlamak için bunu boş bırakın."
+	}
+}

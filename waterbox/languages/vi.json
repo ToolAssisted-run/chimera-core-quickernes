@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Băng này không có pin nên không giữ bản lưu nào, và '%1' sẽ không được đọc.",
+		"error.not_opened": "Không thể mở '%1'.",
+		"setting.port1": "Thiết bị cổng trái",
+		"setting.port1.about": "Thiết bị cắm vào cổng tay cầm số 1. Nó là một phần của máy, nên đổi nó sẽ khởi động lại lõi.",
+		"setting.port2": "Thiết bị cổng phải",
+		"setting.port2.about": "Thiết bị cắm vào cổng tay cầm số 2. Four Score ở đây là nửa thứ hai của bộ chuyển bốn người chơi.",
+		"setting.spritelimit": "Số sprite hiển thị",
+		"setting.spritelimit.about": "Có bao nhiêu sprite được vẽ trên một dòng hình ảnh. 8 là số mà máy thật làm, và đó là lý do sprite bị nhấp nháy. 64 vẽ tất cả. Chỉ thay đổi hình ảnh. Trò chơi chạy y như cũ, và cài đặt này không được lưu trong bản ghi.",
+		"slot.rom": "Băng",
+		"slot.rom.help": "Tệp băng NES theo định dạng iNES (.nes).",
+		"slot.savedata": "Dữ liệu lưu",
+		"slot.savedata.help": "Trò chơi đã lưu mà băng có pin bắt đầu với nó. Đây là tệp mà Emulator > Export Save Data... ghi ra (battery.sav, 8 KB bộ nhớ lưu của băng). Đặt nó vào đây để tiếp tục một lần chạy từ chỗ một lần chạy khác đã dừng. Tệp này không bao giờ bị thay đổi. Dự án và bản ghi ghi chính xác đó là tệp nào, nên một bản ghi bắt đầu từ trò chơi đã lưu có thể được phát lại bởi bất kỳ ai có cùng tệp. Băng không có pin thì không giữ bản lưu, và dự án sẽ nói như vậy. Để trống để bắt đầu với băng mới."
+	}
+}

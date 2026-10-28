@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Aquest cartutx no té bateria, així que no guarda partides, i no es llegiria «%1».",
+		"error.not_opened": "No s'ha pogut obrir «%1».",
+		"setting.port1": "Perifèric del port esquerre",
+		"setting.port1.about": "El que hi ha connectat al port de comandament 1. Forma part de la màquina, així que canviar-lo reinicia el nucli.",
+		"setting.port2": "Perifèric del port dret",
+		"setting.port2.about": "El que hi ha connectat al port de comandament 2. El Four Score és aquí la segona meitat d'un adaptador de quatre jugadors.",
+		"setting.spritelimit": "Sprites visibles",
+		"setting.spritelimit.about": "Quants sprites es dibuixen en una línia de la imatge. 8 és el que fa la consola, i per això els sprites parpellegen. 64 els dibuixa tots. Només canvia la imatge. El joc corre igual, i el paràmetre no es desa a les pel·lícules.",
+		"slot.rom": "Cartutx",
+		"slot.rom.help": "El fitxer del cartutx de NES en format iNES (.nes).",
+		"slot.savedata": "Dades de partida",
+		"slot.savedata.help": "La partida desada amb què comença un cartutx amb bateria. És el fitxer que escriu Emulador > Exporta les dades de partida... (battery.sav, els 8 KB de memòria de desat del cartutx). Poseu-lo aquí per continuar una execució des d'on n'havia parat una altra. El fitxer mai no es canvia. El projecte i la pel·lícula registren exactament quin fitxer era, així que una pel·lícula que comença des d'una partida desada la pot reproduir qualsevol que tingui el mateix fitxer. Un cartutx sense bateria no guarda partides, i el projecte ho diu. Deixeu-ho buit per començar amb un cartutx nou."
+	}
+}

@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Diese Cartridge hat keine Batterie und speichert daher keine Spielstände, und '%1' würde nicht gelesen.",
+		"error.not_opened": "'%1' konnte nicht geöffnet werden.",
+		"setting.port1": "Peripherie am linken Anschluss",
+		"setting.port1.about": "Was an Controller-Anschluss 1 angeschlossen ist. Es gehört zur Maschine, daher startet der Core neu, wenn man es ändert.",
+		"setting.port2": "Peripherie am rechten Anschluss",
+		"setting.port2.about": "Was an Controller-Anschluss 2 angeschlossen ist. Das Four Score hier ist die zweite Hälfte eines Vierspieler-Adapters.",
+		"setting.spritelimit": "Sichtbare Sprites",
+		"setting.spritelimit.about": "Wie viele Sprites auf einer Zeile des Bildes gezeichnet werden. 8 ist, was die Konsole tut, und deshalb flimmern die Sprites. 64 zeichnet alle. Es ändert nur das Bild. Das Spiel läuft gleich, und die Einstellung wird nicht in Filmen gespeichert.",
+		"slot.rom": "Cartridge",
+		"slot.rom.help": "Die NES-Cartridge-Datei im iNES-Format (.nes).",
+		"slot.savedata": "Speicherdaten",
+		"slot.savedata.help": "Der gespeicherte Spielstand, mit dem eine Cartridge mit Batterie startet. Das ist die Datei, die Emulator > Speicherdaten exportieren... schreibt (battery.sav, die 8 KB Speicher der Cartridge). Legen Sie sie hier ab, um einen Lauf dort fortzusetzen, wo ein anderer aufgehört hat. Die Datei wird nie geändert. Projekt und Film halten genau fest, welche Datei es war, damit ein Film, der von einem gespeicherten Spiel startet, von jedem abgespielt werden kann, der dieselbe Datei hat. Eine Cartridge ohne Batterie speichert keine Spielstände, und das Projekt sagt das. Lassen Sie dies leer, um mit einer frischen Cartridge zu starten."
+	}
+}

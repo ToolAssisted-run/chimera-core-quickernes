@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Questa cartuccia non ha batteria, quindi non conserva salvataggi, e '%1' non verrebbe letto.",
+		"error.not_opened": "Impossibile aprire '%1'.",
+		"setting.port1": "Periferica porta sinistra",
+		"setting.port1.about": "Ciò che è collegato alla porta controller 1. Fa parte della macchina, quindi cambiarlo riavvia il core.",
+		"setting.port2": "Periferica porta destra",
+		"setting.port2.about": "Ciò che è collegato alla porta controller 2. Il Four Score qui è la seconda metà di un adattatore a quattro giocatori.",
+		"setting.spritelimit": "Sprite visibili",
+		"setting.spritelimit.about": "Quanti sprite vengono disegnati su una riga dell'immagine. 8 è ciò che fa la console, ed è il motivo per cui gli sprite sfarfallano. 64 li disegna tutti. Cambia solo l'immagine. Il gioco va allo stesso modo, e l'impostazione non viene salvata nei filmati.",
+		"slot.rom": "Cartuccia",
+		"slot.rom.help": "Il file della cartuccia NES in formato iNES (.nes).",
+		"slot.savedata": "Dati di salvataggio",
+		"slot.savedata.help": "Il gioco salvato con cui parte una cartuccia dotata di batteria. È il file che scrive Emulatore > Esporta dati di salvataggio... (battery.sav, gli 8 KB di memoria di salvataggio della cartuccia). Mettilo qui per riprendere una corsa da dove si era fermata un'altra. Il file non viene mai modificato. Il progetto e il filmato registrano esattamente quale file è stato usato, così un filmato che parte da un gioco salvato può essere riprodotto da chiunque abbia lo stesso file. Una cartuccia senza batteria non conserva salvataggi, e il progetto lo dice. Lascia vuoto per partire con una cartuccia nuova."
+	}
+}

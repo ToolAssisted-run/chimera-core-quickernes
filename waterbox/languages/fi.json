@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Tässä kasetissa ei ole paristoa, joten se ei säilytä tallennuksia, eikä '%1' voitaisi lukea.",
+		"error.not_opened": "Kohdetta '%1' ei voitu avata.",
+		"setting.port1": "Vasemman portin lisälaite",
+		"setting.port1.about": "Mikä on kytketty ohjainporttiin 1. Se on osa konetta, joten sen vaihtaminen käynnistää ytimen uudelleen.",
+		"setting.port2": "Oikean portin lisälaite",
+		"setting.port2.about": "Mikä on kytketty ohjainporttiin 2. Four Score on tässä nelipelaajan sovittimen toinen puolisko.",
+		"setting.spritelimit": "Näkyvät spritet",
+		"setting.spritelimit.about": "Kuinka monta spritea piirretään yhdelle kuvarivillä. 8 on se, mitä konsoli tekee, ja siksi spritet välkkyvät. 64 piirtää kaikki. Asetus muuttaa vain kuvaa. Peli toimii samalla tavalla, eikä asetusta tallenneta elokuviin.",
+		"slot.rom": "Kasetti",
+		"slot.rom.help": "NES-kasettitiedosto iNES-muodossa (.nes).",
+		"slot.savedata": "Tallennustiedot",
+		"slot.savedata.help": "Tallennettu peli, josta paristolla varustettu kasetti käynnistyy. Tämä on tiedosto, jonka Emulaattori > Vie tallennustiedot... kirjoittaa (battery.sav, kasetin 8 KB:n tallennusmuisti). Aseta se tähän, jos haluat jatkaa ajoa siitä, mihin toinen ajo päättyi. Tiedostoa ei muuteta koskaan. Projekti ja elokuva tallentavat tarkalleen, mikä tiedosto se oli, joten elokuvan, joka alkaa tallennetusta pelistä, voi toistaa kuka tahansa, jolla on sama tiedosto. Kasetti ilman paristoa ei säilytä tallennuksia, ja projekti kertoo sen. Jätä tyhjäksi, jos haluat aloittaa uudella kasetilla."
+	}
+}

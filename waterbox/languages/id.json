@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Kartrid ini tidak punya baterai, jadi tidak menyimpan save, dan '%1' tidak akan dibaca.",
+		"error.not_opened": "Tidak dapat membuka '%1'.",
+		"setting.port1": "Periferal Port Kiri",
+		"setting.port1.about": "Apa yang dicolokkan ke port kontroler 1. Ini bagian dari mesin, sehingga mengubahnya memulai ulang core.",
+		"setting.port2": "Periferal Port Kanan",
+		"setting.port2.about": "Apa yang dicolokkan ke port kontroler 2. Four Score di sini adalah separuh kedua dari adaptor empat pemain.",
+		"setting.spritelimit": "Sprite Terlihat",
+		"setting.spritelimit.about": "Berapa banyak sprite yang digambar dalam satu baris gambar. 8 adalah yang dilakukan konsol, dan itulah sebabnya sprite berkedip. 64 menggambar semuanya. Ini hanya mengubah gambar. Game berjalan sama, dan pengaturan ini tidak disimpan di movie.",
+		"slot.rom": "Kartrid",
+		"slot.rom.help": "Berkas kartrid NES dalam format iNES (.nes).",
+		"slot.savedata": "Data save",
+		"slot.savedata.help": "Game tersimpan yang dimulai oleh kartrid dengan baterai. Ini adalah berkas yang ditulis oleh Emulator > Export Save Data... (battery.sav, memori save 8 KB milik kartrid). Isi di sini untuk melanjutkan run dari tempat run lain berhenti. Berkas tidak pernah diubah. Proyek dan movie mencatat persis berkas yang mana, sehingga movie yang dimulai dari game tersimpan dapat diputar ulang oleh siapa pun yang punya berkas yang sama. Kartrid tanpa baterai tidak menyimpan save, dan proyek menyatakannya. Biarkan kosong untuk memulai dengan kartrid baru."
+	}
+}

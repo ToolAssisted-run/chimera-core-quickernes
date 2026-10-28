@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Denne cartridge har intet batteri og gemmer derfor ingen savedata, og '%1' kan ikke læses.",
+		"error.not_opened": "Kunne ikke åbne '%1'.",
+		"setting.port1": "Venstre portperiferi",
+		"setting.port1.about": "Det, der er sat i controllerport 1. Det er en del af maskinen, så en ændring genstarter kernen.",
+		"setting.port2": "Højre portperiferi",
+		"setting.port2.about": "Det, der er sat i controllerport 2. Four Score her er den anden halvdel af en adapter til fire spillere.",
+		"setting.spritelimit": "Synlige sprites",
+		"setting.spritelimit.about": "Hvor mange sprites der tegnes på én linje i billedet. 8 er det, konsollen gør, og det er derfor, sprites flimrer. 64 tegner dem alle. Det ændrer kun billedet. Spillet kører på samme måde, og indstillingen gemmes ikke i film.",
+		"slot.rom": "Cartridge",
+		"slot.rom.help": "NES-cartridgefilen i iNES-format (.nes).",
+		"slot.savedata": "Savedata",
+		"slot.savedata.help": "Det gemte spil, som en cartridge med batteri starter med. Det er filen, som Emulator > Eksportér savedata... skriver (battery.sav, cartridgens 8 KB savehukommelse). Læg den her for at fortsætte en kørsel, hvor en anden stoppede. Filen ændres aldrig. Projektet og filmen noterer præcis, hvilken fil det var, så en film, der starter fra et gemt spil, kan afspilles af alle, der har samme fil. En cartridge uden batteri gemmer ingen savedata, og projektet siger det. Lad feltet stå tomt for at starte med en ny cartridge."
+	}
+}

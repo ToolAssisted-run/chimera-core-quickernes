@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Cette cartouche n'a pas de pile, donc elle ne garde aucune sauvegarde, et « %1 » ne serait pas lu.",
+		"error.not_opened": "Impossible d'ouvrir « %1 ».",
+		"setting.port1": "Périphérique du port gauche",
+		"setting.port1.about": "Ce qui est branché au port de manette 1. Cela fait partie de la machine : la modifier redémarre le cœur.",
+		"setting.port2": "Périphérique du port droit",
+		"setting.port2.about": "Ce qui est branché au port de manette 2. Le Four Score est ici la seconde moitié d'un adaptateur à quatre joueurs.",
+		"setting.spritelimit": "Sprites visibles",
+		"setting.spritelimit.about": "Combien de sprites sont dessinés sur une ligne de l'image. 8 est ce que fait la console, et c'est pourquoi les sprites clignotent. 64 les dessine tous. Cela ne change que l'image : le jeu tourne de la même façon, et ce réglage n'est pas enregistré dans les films.",
+		"slot.rom": "Cartouche",
+		"slot.rom.help": "Le fichier de cartouche NES au format iNES (.nes).",
+		"slot.savedata": "Données de sauvegarde",
+		"slot.savedata.help": "La partie sauvegardée avec laquelle démarre une cartouche qui a une pile. C'est le fichier que produit Émulateur > Exporter les données de sauvegarde... (battery.sav, les 8 Ko de mémoire de sauvegarde de la cartouche). Mettez-le ici pour reprendre une exécution là où une autre s'est arrêtée. Le fichier n'est jamais modifié. Le projet et le film enregistrent exactement quel fichier c'était, pour qu'un film qui part d'une partie sauvegardée puisse être rejoué par quiconque possède le même fichier. Une cartouche sans pile ne garde aucune sauvegarde, et le projet le dit. Laissez ce champ vide pour démarrer avec une cartouche neuve."
+	}
+}

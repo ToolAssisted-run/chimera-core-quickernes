@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Dit cartridge heeft geen batterij, dus het bewaart geen saves, en '%1' zou niet worden gelezen.",
+		"error.not_opened": "Kon '%1' niet openen.",
+		"setting.port1": "Aangesloten apparaat op linkerpoort",
+		"setting.port1.about": "Wat er op controllerpoort 1 is aangesloten. Het hoort bij de machine, dus als je het verandert, start de core opnieuw.",
+		"setting.port2": "Aangesloten apparaat op rechterpoort",
+		"setting.port2.about": "Wat er op controllerpoort 2 is aangesloten. De Four Score hier is de tweede helft van een adapter voor vier spelers.",
+		"setting.spritelimit": "Zichtbare sprites",
+		"setting.spritelimit.about": "Hoeveel sprites op één regel van het beeld worden getekend. 8 is wat de console doet, en daardoor flikkeren sprites. 64 tekent ze allemaal. Het verandert alleen het beeld. Het spel verloopt hetzelfde, en de instelling wordt niet in films opgeslagen.",
+		"slot.rom": "Cartridge",
+		"slot.rom.help": "Het NES-cartridgebestand in iNES-formaat (.nes).",
+		"slot.savedata": "Savegegevens",
+		"slot.savedata.help": "Het opgeslagen spel waarmee een cartridge met batterij begint. Dit is het bestand dat Emulator > Savegegevens exporteren... schrijft (battery.sav, de 8 KB savegeheugen van het cartridge). Zet het hier om een run voort te zetten vanaf waar een andere is gestopt. Het bestand wordt nooit gewijzigd. Het project en de film leggen precies vast welk bestand het was, zodat een film die van een opgeslagen spel begint door iedereen met hetzelfde bestand kan worden afgespeeld. Een cartridge zonder batterij bewaart geen saves, en het project zegt dat. Laat dit leeg om met een nieuw cartridge te beginnen."
+	}
+}

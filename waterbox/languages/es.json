@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Este cartucho no tiene pila, así que no guarda partidas, y '%1' no se leería.",
+		"error.not_opened": "No se pudo abrir '%1'.",
+		"setting.port1": "Periférico del puerto izquierdo",
+		"setting.port1.about": "Lo que está conectado al puerto de mando 1. Forma parte de la máquina, así que cambiarlo reinicia el núcleo.",
+		"setting.port2": "Periférico del puerto derecho",
+		"setting.port2.about": "Lo que está conectado al puerto de mando 2. El Four Score de aquí es la segunda mitad de un adaptador de cuatro jugadores.",
+		"setting.spritelimit": "Sprites visibles",
+		"setting.spritelimit.about": "Cuántos sprites se dibujan en una línea de la imagen. 8 es lo que hace la consola, y por eso los sprites parpadean. 64 los dibuja todos. Solo cambia la imagen. El juego funciona igual, y el ajuste no se guarda en las películas.",
+		"slot.rom": "Cartucho",
+		"slot.rom.help": "El archivo del cartucho de NES en formato iNES (.nes).",
+		"slot.savedata": "Datos de guardado",
+		"slot.savedata.help": "La partida guardada con la que empieza un cartucho con pila. Es el archivo que escribe Emulador > Exportar datos de guardado... (battery.sav, los 8 KB de memoria de guardado del cartucho). Póngalo aquí para seguir una ejecución desde donde terminó otra. El archivo nunca se modifica. El proyecto y la película registran exactamente qué archivo era, así que una película que empieza desde una partida guardada puede reproducirla cualquiera que tenga el mismo archivo. Un cartucho sin pila no guarda partidas, y el proyecto lo indica. Deje esto vacío para empezar con un cartucho nuevo."
+	}
+}

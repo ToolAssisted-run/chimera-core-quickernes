@@ -1,0 +1,16 @@
+{
+	"texts": {
+		"error.no_battery": "Ten wkład nie ma baterii, więc nie zachowuje zapisów, a „%1” nie zostanie odczytany.",
+		"error.not_opened": "Nie można otworzyć „%1”.",
+		"setting.port1": "Urządzenie w lewym porcie",
+		"setting.port1.about": "Co jest podłączone do portu kontrolera 1. Jest to część maszyny, więc zmiana tego ustawienia uruchamia rdzeń ponownie.",
+		"setting.port2": "Urządzenie w prawym porcie",
+		"setting.port2.about": "Co jest podłączone do portu kontrolera 2. Four Score to druga połowa czteroosobowego adaptera.",
+		"setting.spritelimit": "Widoczne duszki",
+		"setting.spritelimit.about": "Ile duszków jest rysowanych w jednej linii obrazu. 8 to tyle, ile robi konsola, i dlatego duszki migoczą. 64 rysuje wszystkie. Ustawienie zmienia tylko obraz. Gra działa tak samo, a ustawienie nie jest zapisywane w filmach.",
+		"slot.rom": "Wkład",
+		"slot.rom.help": "Plik wkładu NES w formacie iNES (.nes).",
+		"slot.savedata": "Dane zapisu",
+		"slot.savedata.help": "Zapisana gra, od której zaczyna się wkład z baterią. To ten plik, który zapisuje Emulator > Eksportuj dane zapisu... (battery.sav, 8 KB pamięci zapisu wkładu). Włóż go tutaj, aby kontynuować przebieg tam, gdzie inny się skończył. Plik nigdy nie jest zmieniany. Projekt i film zapisują dokładnie, który to był plik, więc film zaczynający się od zapisanej gry może odtworzyć każdy, kto ma ten sam plik. Wkład bez baterii nie zachowuje zapisów, a projekt to mówi. Zostaw puste, aby zacząć od nowego wkładu."
+	}
+}
