@@ -216,9 +216,9 @@ The same package file works on Linux and on Windows. The guest inside it is
 run by Chimera's sandbox (miniBox) on either.
 
 Packages built by CI are on this repository's Releases page,
-https://github.com/ToolAssisted-run/chimera-core-quickernes/releases : a
-rolling `dev` release and dated `nightly-YYYY-MM-DD` releases. The asset is
-named `quickernes-<version>.chimeraCore`. Download it and put it in the
+https://github.com/ToolAssisted-run/chimera-core-quickernes/releases : dated
+`nightly-YYYY-MM-DD` releases. The asset is named
+`quickernes-<version>-x86_64.chimeraCore`. Download it and put it in the
 `cores` folder.
 
 To use the core: File > New Project... and pick it. To play a rom with no
@@ -317,10 +317,9 @@ dumps go to `minihawk/tests/work/`, which git ignores.
 pull requests and pushes to `main` that touch `waterbox/**`, `minihawk/**`,
 `source/**`, `meson.build`, `meson_options.txt` or the workflow file; every
 day at 04:00 UTC; and on manual dispatch. `publish` runs when both jobs
-passed and the event is not a pull request. A push publishes the rolling
-`dev` release. The scheduled run publishes `nightly-YYYY-MM-DD`, and only
-when `main` moved since the last nightly. A manual run takes `kind`, `dev` or
-`nightly`; blank means `dev`.
+passed and the run is the scheduled one or was started by hand: it publishes
+`nightly-YYYY-MM-DD`, and only when `main` moved since the last nightly. A
+push or a pull request publishes nothing.
 
 A second workflow, `.github/workflows/make.yml`, builds the repository's
 standalone tester and runs its tests on every pull request and push to
