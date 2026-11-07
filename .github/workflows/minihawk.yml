@@ -41,9 +41,21 @@ jobs:
     # The fast half: the sandboxed core must emulate byte-identically to the
     # original shared library, and survive a savestate round-trip around every
     # frame. No Chimera window or display involved.
-    name: core gate (equivalence + savestates)
-    runs-on: ubuntu-latest
+    # Once per CPU, each on a runner of that CPU: a package is machine code for
+    # one CPU, and miniBox's guest toolchain builds for the CPU it runs on.
+    name: core gate (equivalence + savestates) (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            qt: gcc_64
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            qt: gcc_arm64
     steps:
       - uses: actions/checkout@v6
         with:
@@ -72,7 +84,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: minihawk-checkout/extern/chimera-common-minibox/build/meson-cpp
-          key: guest-cpp-${{ runner.os }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/.git') }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/meson.build') }}
+          key: guest-cpp-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/.git') }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/meson.build') }}
 
       - name: Build miniBox (host + C++ guest toolchain)
         run: |
@@ -91,6 +103,10 @@ jobs:
           mb="$PWD/minihawk-checkout/extern/chimera-common-minibox"
           sh waterbox/setup-guest.sh -m "$mb"
           ninja -C build/meson-guest core.wbx
+          # an aarch64 guest reads its thread pointer from the machine's slot, not
+          # TPIDR_EL0 (miniBox's MACHINE-SPEC, "aarch64"); the host refuses one not rewritten so
+          mb="$(sed -n "s/^minibox_dir = '\(.*\)'$/\1/p" build/guest-cross.ini)"
+          [ "$(uname -m)" = x86_64 ] || python3 "$mb/source/guest/wbx-tp-rewrite.py" build/meson-guest/core.wbx
 
       # One leg of the gate - ports:columns, which asks what a recorded frame
       # looks like - needs chimera-run and an installed package, and this job
@@ -107,7 +123,7 @@ jobs:
       - name: Upload core.wbx
         uses: actions/upload-artifact@v7
         with:
-          name: core-wbx
+          name: core-wbx-${{ matrix.arch }}
           path: |
             build/meson-guest/core.wbx
             waterbox/waterbox.config
@@ -120,9 +136,21 @@ jobs:
     # goldens that were recorded from the native core. Savestate faithfulness is
     # NOT retested here - core-gate above proves it directly. Builds all of
     # miniHawk, so it takes minutes; the core gate gives fast feedback meanwhile.
-    name: frontend witness (free rom set)
-    runs-on: ubuntu-latest
+    # Once per CPU, each on a runner of that CPU: a package is machine code for
+    # one CPU, and miniBox's guest toolchain builds for the CPU it runs on.
+    name: frontend witness (free rom set) (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            qt: gcc_64
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            qt: gcc_arm64
     steps:
       - uses: actions/checkout@v6
         with:
@@ -140,7 +168,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/qt
-          key: qt-6.12.0-linux-aqt-3.3.0
+          key: qt-6.12.0-linux-${{ matrix.arch }}-aqt-3.3.0
 
       - name: Build Chimera (the engine, chimera-run and the window)
         run: minihawk-checkout/tools/ci-chimera.sh "$HOME/qt"
@@ -149,7 +177,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: minihawk-checkout/extern/chimera-common-minibox/build/meson-cpp
-          key: guest-cpp-${{ runner.os }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/.git') }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/meson.build') }}
+          key: guest-cpp-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/.git') }}-${{ hashFiles('minihawk-checkout/extern/chimera-common-minibox/meson.build') }}
 
       - name: Build miniBox (host + C++ guest toolchain)
         run: |
@@ -177,7 +205,7 @@ jobs:
         # no artifact. The version inside it is the commit above.
         uses: actions/upload-artifact@v7
         with:
-          name: quickernes-${{ github.sha }}
+          name: quickernes-${{ github.sha }}-${{ matrix.arch }}
           path: minihawk-checkout/build/Cores/quickernes.chimeraCore
           if-no-files-found: error
 
@@ -185,7 +213,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-witness-work
+          name: frontend-witness-work-${{ matrix.arch }}
           path: minihawk/tests/work/
 
   publish:
@@ -208,3 +236,4 @@ jobs:
       core-id: quickernes
       artifact: quickernes-${{ github.sha }}
       package: quickernes.chimeraCore
+      arches: x86_64 aarch64
