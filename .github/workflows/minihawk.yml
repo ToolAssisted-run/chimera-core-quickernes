@@ -103,6 +103,10 @@ jobs:
           mb="$PWD/minihawk-checkout/extern/chimera-common-minibox"
           sh waterbox/setup-guest.sh -m "$mb"
           ninja -C build/meson-guest core.wbx
+          # an aarch64 guest reads its thread pointer from the machine's slot, not
+          # TPIDR_EL0 (miniBox's MACHINE-SPEC, "aarch64"); the host refuses one not rewritten so
+          mb="$(sed -n "s/^minibox_dir = '\(.*\)'$/\1/p" build/guest-cross.ini)"
+          [ "$(uname -m)" = x86_64 ] || python3 "$mb/source/guest/wbx-tp-rewrite.py" build/meson-guest/core.wbx
 
       # One leg of the gate - ports:columns, which asks what a recorded frame
       # looks like - needs chimera-run and an installed package, and this job
