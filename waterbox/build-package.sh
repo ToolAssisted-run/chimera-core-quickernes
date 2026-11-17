@@ -67,6 +67,9 @@ cp -r "$here/languages" "$staging/languages"
 # own, and the emulator inside it is somebody else's work under somebody
 # else's licence (see waterbox/package-licenses.json)
 python3 "$mb/source/guest/package-licenses.py" "$here/.." "$staging"
+# this core's windows in Chimera's Emulator menu: miniBox's ready-made ones
+# for what core.wbx exports, their design and texts (Chimera issue 610)
+python3 "$mb/source/guest/windows/add-windows.py" "$staging"
 
 # ---- version ----
 # A core's authoritative version is the commit it was built from, stamped by the
